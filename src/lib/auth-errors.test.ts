@@ -22,6 +22,11 @@ describe("getAuthErrorMessage", () => {
       .toContain("首次设置密码");
   });
 
+  it("does not send password recovery errors back into the same loop", () => {
+    expect(getAuthErrorMessage({ code: "invalid_credentials" }, "update"))
+      .toContain("重置的登录状态已失效");
+  });
+
   it("uses action-specific fallback messages", () => {
     expect(getAuthErrorMessage({ code: "unexpected_failure" }, "register"))
       .toBe("注册失败，请稍后重试。");

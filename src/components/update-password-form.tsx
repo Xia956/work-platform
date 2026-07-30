@@ -3,8 +3,6 @@
 import { FormEvent, useState } from "react";
 import { ArrowRight, Eye, EyeOff, LockKeyhole } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { safeNextPath } from "@/lib/validation";
 
 export function UpdatePasswordForm({ nextPath }: { nextPath?: string }) {
@@ -26,9 +24,14 @@ export function UpdatePasswordForm({ nextPath }: { nextPath?: string }) {
     setBusy(true);
     setMessage("");
     try {
-      const { error } = await createClient().auth.updateUser({ password });
-      if (error) {
-        setMessage(getAuthErrorMessage(error, "update"));
+      const response = await fetch("/api/auth/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const result = (await response.json()) as { ok?: boolean; error?: string };
+      if (!response.ok || !result.ok) {
+        setMessage(result.error || "密码保存失败，请重新打开最新一封重置邮件后再试。");
         return;
       }
       router.replace(destination);

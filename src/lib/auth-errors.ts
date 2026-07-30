@@ -26,7 +26,9 @@ export function getAuthErrorMessage(error: AuthErrorLike, context: AuthContext =
     error.code === "invalid_credentials" ||
     error.message?.toLowerCase().includes("invalid login credentials")
   ) {
-    return "邮箱或密码不正确。若以前使用邮件链接登录，请点击“首次设置密码或忘记密码”。";
+    return context === "update"
+      ? "这次密码重置的登录状态已失效，请返回并重新打开最新一封重置邮件。"
+      : "邮箱或密码不正确。若以前使用邮件链接登录，请点击“首次设置密码或忘记密码”。";
   }
   if (error.code === "email_not_confirmed") {
     return "邮箱还未验证，请先打开注册确认邮件。";

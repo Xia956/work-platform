@@ -15,6 +15,8 @@ export async function loadRows<T>(
   }
   const supabase = await createClient();
   if (!supabase) return [];
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData.user) return [];
   const { data, error } = await supabase
     .from(table)
     .select("*")
@@ -37,6 +39,8 @@ export async function loadRelated<T>(
   }
   const supabase = await createClient();
   if (!supabase) return [];
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData.user) return [];
   const { data, error } = await supabase.from(table).select("*").in(column, ids);
   if (error) throw new Error(`读取 ${table} 关联数据失败`);
   return (data ?? []) as T[];

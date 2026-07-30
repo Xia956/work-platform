@@ -114,6 +114,8 @@ export type ContentStage =
 
 export interface ContentProject {
   id: string;
+  guestId?: string;
+  isGuest?: boolean;
   title: string;
   stage: ContentStage;
   stageIndex: number;

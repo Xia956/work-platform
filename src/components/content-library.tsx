@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -21,6 +21,13 @@ import {
 import { contentStages } from "@/lib/content-projects";
 import type { ContentProject, ContentStage, ScriptVersion } from "@/lib/types";
 import { cn, formatDate } from "@/lib/utils";
+import { LoginRequiredDialog } from "@/components/login-required-dialog";
+import {
+  GUEST_CONTENT_CHANGED_EVENT,
+  guestContentToProject,
+  readGuestContents,
+  updateGuestContent,
+} from "@/lib/guest-content";
 
 const stageMeta: Record<ContentStage, { label: string; tone: string; icon: typeof Lightbulb }> = {
   idea: { label: "新灵感", tone: "bg-[#eee8dc] text-[#786443]", icon: Lightbulb },
@@ -35,19 +42,33 @@ type LibraryFilter = "all" | "active" | ContentStage;
 export function ContentLibrary({
   initialProjects,
   initialFilter = "all",
+  guestMode = false,
 }: {
   initialProjects: ContentProject[];
   initialFilter?: LibraryFilter;
+  guestMode?: boolean;
 }) {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState(initialProjects[0]?.id ?? "");
   const [filter, setFilter] = useState<LibraryFilter>(initialFilter);
   const [query, setQuery] = useState("");
   const [mobileView, setMobileView] = useState<"library" | "project">("library");
+  const [projects, setProjects] = useState(initialProjects);
+
+  useEffect(() => {
+    if (!guestMode) return;
+    const sync = () => setProjects(readGuestContents().map(guestContentToProject));
+    const frame = window.requestAnimationFrame(sync);
+    window.addEventListener(GUEST_CONTENT_CHANGED_EVENT, sync);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener(GUEST_CONTENT_CHANGED_EVENT, sync);
+    };
+  }, [guestMode]);
 
   const filtered = useMemo(() => {
     const keyword = query.trim().toLowerCase();
-    return initialProjects.filter((project) => {
+    return projects.filter((project) => {
       const matchesStage =
         filter === "all" ||
         project.stage === filter ||
@@ -61,12 +82,16 @@ export function ContentLibrary({
       ].join(" ").toLowerCase();
       return matchesStage && (!keyword || haystack.includes(keyword));
     });
-  }, [initialProjects, filter, query]);
+  }, [projects, filter, query]);
 
   const selected = filtered.find((project) => project.id === selectedId) ?? filtered[0] ?? null;
 
   function refresh() {
-    router.refresh();
+    if (guestMode) {
+      setProjects(readGuestContents().map(guestContentToProject));
+    } else {
+      router.refresh();
+    }
   }
 
   function changeFilter(nextFilter: LibraryFilter) {
@@ -77,6 +102,11 @@ export function ContentLibrary({
 
   return (
     <>
+      {guestMode ? (
+        <div className="mb-3 rounded-lg border border-[#dfcda7] bg-[#faf4e7] px-3 py-2.5 text-xs leading-5 text-[#6f5a35]">
+          访客内容仅保存在当前设备。登录后可同步，并继续使用 AI、发布和复盘。
+        </div>
+      ) : null}
       <div className={cn("mb-3 flex flex-col gap-2 sm:mb-5 lg:flex-row lg:items-center lg:justify-between", mobileView === "project" && "hidden xl:flex")}>
         <div className="grid min-w-0 flex-1 grid-cols-[1fr_112px] gap-2">
           <div className="relative min-w-0 flex-1 lg:max-w-md">
@@ -148,7 +178,11 @@ export function ContentLibrary({
             >
               ← 返回内容列表
             </button>
-            <ProjectPanel key={`${selected.id}-${selected.updatedAt}`} project={selected} onChanged={refresh} />
+            <ProjectPanel
+              key={`${selected.id}-${selected.updatedAt}`}
+              project={selected}
+              onChanged={refresh}
+            />
           </aside>
         ) : null}
       </div>
@@ -224,6 +258,8 @@ function ProjectPanel({
   const [draft, setDraft] = useState("");
   const [ideaDetail, setIdeaDetail] = useState(project.inspiration?.content ?? "");
   const [optimizeType, setOptimizeType] = useState("hook");
+  const [loginReason, setLoginReason] = useState("");
+  const guestId = project.guestId;
 
   async function request(url: string, init: RequestInit) {
     setBusy(true);
@@ -241,6 +277,15 @@ function ProjectPanel({
 
   async function convert() {
     if (!project.inspiration) return;
+    if (project.isGuest && guestId) {
+      updateGuestContent(guestId, {
+        idea: ideaDetail.trim() || project.inspiration.content,
+        direction: ideaDetail.trim() || project.inspiration.content || project.title,
+      });
+      setMessage("已开始推进，可以继续补充粗稿");
+      onChanged();
+      return;
+    }
     if (ideaDetail.trim() !== project.inspiration.content) {
       const updated = await request("/api/data/inspirations", {
         method: "PATCH",
@@ -258,6 +303,12 @@ function ProjectPanel({
 
   async function createDraft(event: FormEvent) {
     event.preventDefault();
+    if (project.isGuest && guestId) {
+      updateGuestContent(guestId, { draft: draft.trim(), stage: "rough_draft" });
+      setMessage("粗稿已保存在当前设备");
+      onChanged();
+      return;
+    }
     const result = await request("/api/scripts", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -273,6 +324,12 @@ function ProjectPanel({
 
   async function saveVersion() {
     if (!project.script) return;
+    if (project.isGuest && guestId) {
+      updateGuestContent(guestId, { draft: editor.trim(), stage: "ai_optimized" });
+      setMessage("修改已保存在当前设备");
+      onChanged();
+      return;
+    }
     const result = await request("/api/scripts", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -288,6 +345,10 @@ function ProjectPanel({
   }
 
   async function optimize() {
+    if (project.isGuest) {
+      setLoginReason("AI 文案优化需要登录，用于保护调用额度并保存不同版本。");
+      return;
+    }
     if (!project.script || !currentVersion) return;
     let sourceVersion: ScriptVersion = currentVersion;
     if (editor.trim() && editor !== currentVersion.content) {
@@ -323,6 +384,15 @@ function ProjectPanel({
 
   async function updateStatus(status: "ready" | "drafting") {
     if (!project.script) return;
+    if (project.isGuest && guestId) {
+      updateGuestContent(guestId, {
+        draft: editor.trim(),
+        stage: status === "ready" ? "ready" : "ai_optimized",
+      });
+      setMessage(status === "ready" ? "已移入待发布" : "已退回继续打磨");
+      onChanged();
+      return;
+    }
     const result = await request("/api/scripts", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -419,12 +489,22 @@ function ProjectPanel({
             </div>
 
             {project.stage === "ready" && project.script?.current_version_id ? (
-              <Link
-                href={`/publications?script=${project.script.id}&version=${project.script.current_version_id}`}
-                className="btn-primary w-full"
-              >
-                标记为已发布 <ArrowRight className="size-4" />
-              </Link>
+              project.isGuest ? (
+                <button
+                  type="button"
+                  className="btn-primary w-full"
+                  onClick={() => setLoginReason("正式发布和数据复盘需要登录，以便关联文案版本并持续保存数据。")}
+                >
+                  标记为已发布 <ArrowRight className="size-4" />
+                </button>
+              ) : (
+                <Link
+                  href={`/publications?script=${project.script.id}&version=${project.script.current_version_id}`}
+                  className="btn-primary w-full"
+                >
+                  标记为已发布 <ArrowRight className="size-4" />
+                </Link>
+              )
             ) : (
               project.stage !== "ready" ? (
                 <button type="button" className="btn-primary w-full" disabled={busy} onClick={() => void updateStatus("ready")}>
@@ -468,6 +548,12 @@ function ProjectPanel({
 
         {message ? <p className="text-sm leading-6 text-[#9a4d38]">{message}</p> : null}
       </div>
+      <LoginRequiredDialog
+        open={Boolean(loginReason)}
+        reason={loginReason}
+        nextPath="/content"
+        onClose={() => setLoginReason("")}
+      />
     </div>
   );
 }

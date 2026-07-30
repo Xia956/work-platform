@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/empty-state";
 import { calculateDelta, calculateRates } from "@/lib/metrics";
 import type { MetricSnapshot, Publication, Script, ScriptVersion } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
+import { LoginRequiredDialog } from "@/components/login-required-dialog";
 
 type Review = {
   summary: string;
@@ -31,6 +32,7 @@ export function PublicationsManager({
   versions,
   initialScriptId,
   initialVersionId,
+  authenticated,
 }: {
   initialPublications: Publication[];
   initialSnapshots: MetricSnapshot[];
@@ -38,6 +40,7 @@ export function PublicationsManager({
   versions: ScriptVersion[];
   initialScriptId?: string;
   initialVersionId?: string;
+  authenticated: boolean;
 }) {
   const requestedScript = scripts.find((script) => script.id === initialScriptId) ?? null;
   const requestedScriptVersions = versions
@@ -72,6 +75,7 @@ export function PublicationsManager({
     views: 0, likes: 0, comments: 0, shares: 0, favorites: 0,
     followers_gained: 0, completion_rate: "", avg_watch_time: "",
   });
+  const [loginReason, setLoginReason] = useState("");
 
   const selected = publications.find((item) => item.id === selectedId) ?? null;
   const selectedSnapshots = useMemo(
@@ -151,6 +155,10 @@ export function PublicationsManager({
     publicationId?: string,
     range?: { startDate: string; endDate: string },
   ) {
+    if (!authenticated) {
+      setLoginReason("发布、数据记录和 AI 复盘需要登录，以便持续关联内容与真实表现。");
+      return;
+    }
     setBusy(true);
     setMessage("");
     const response = await fetch("/api/ai/reviews/analyze", {
@@ -184,6 +192,12 @@ export function PublicationsManager({
   }
 
   return (
+    <>
+    {!authenticated ? (
+      <div className="mb-3 rounded-lg border border-[#dfcda7] bg-[#faf4e7] px-3 py-2.5 text-xs leading-5 text-[#6f5a35]">
+        登录后可以标记发布、记录数据并进行 AI 复盘；访客灵感和草稿仍保留在当前设备。
+      </div>
+    ) : null}
     <div className="grid gap-3 sm:gap-6 xl:grid-cols-[320px_1fr]">
       <aside className={showCreate ? "hidden xl:block" : ""}>
         <div className="mb-3 flex gap-2">
@@ -417,6 +431,13 @@ export function PublicationsManager({
         <EmptyState title="还没有发布记录" description="请从内容库中的待发布内容进入，确认实际使用版本和发布时间。" />
       )}
     </div>
+    <LoginRequiredDialog
+      open={Boolean(loginReason)}
+      reason={loginReason}
+      nextPath="/publications"
+      onClose={() => setLoginReason("")}
+    />
+    </>
   );
 }
 

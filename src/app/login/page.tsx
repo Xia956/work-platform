@@ -25,8 +25,8 @@ export default async function LoginPage({
       <div className="w-full max-w-md">
         <div className="mb-7 text-center">
           <span className="mx-auto grid size-14 place-items-center rounded-[20px] bg-[#f46f4c] text-2xl text-white">播</span>
-          <h1 className="mt-5 text-3xl font-black tracking-[-0.05em]">欢迎回到口播台</h1>
-          <p className="mt-2 text-sm text-[#706b62]">一个账号，收好你的每一次灵感和迭代。</p>
+          <h1 className="mt-5 text-3xl font-black tracking-[-0.05em]">登录并同步内容</h1>
+          <p className="mt-2 text-sm text-[#706b62]">不登录也能先体验；登录后可云端保存和跨设备使用。</p>
         </div>
         <LoginForm
           configured={supabaseConfigured}

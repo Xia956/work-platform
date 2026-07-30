@@ -1,10 +1,16 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, FilePenLine, Lightbulb, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  createGuestContent,
+  createGuestIdea,
+  guestStats,
+  readGuestContents,
+} from "@/lib/guest-content";
 
 type CreateMode = "idea" | "content" | null;
 
@@ -29,9 +35,11 @@ async function postJson(url: string, body?: unknown) {
 export function DashboardWorkbench({
   stats,
   canWrite,
+  guestMode,
 }: {
   stats: DashboardStats;
   canWrite: boolean;
+  guestMode: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<CreateMode>(null);
@@ -40,13 +48,22 @@ export function DashboardWorkbench({
   const [contentProgress, setContentProgress] = useState<{ inspirationId?: string; topicId?: string }>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [visibleStats, setVisibleStats] = useState(stats);
 
   const statCards = [
-    { label: "新灵感", value: stats.ideas, href: "/content?stage=idea" },
-    { label: "推进中", value: stats.active, href: "/content?stage=active" },
-    { label: "待发布", value: stats.ready, href: "/content?stage=ready" },
-    { label: "已完成", value: stats.completed, href: "/content?stage=published" },
+    { label: "新灵感", value: visibleStats.ideas, href: "/content?stage=idea" },
+    { label: "推进中", value: visibleStats.active, href: "/content?stage=active" },
+    { label: "待发布", value: visibleStats.ready, href: "/content?stage=ready" },
+    { label: "已完成", value: visibleStats.completed, href: "/content?stage=published" },
   ];
+
+  useEffect(() => {
+    if (!guestMode) return;
+    const frame = window.requestAnimationFrame(() => {
+      setVisibleStats(guestStats(readGuestContents()));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [guestMode]);
 
   function open(nextMode: Exclude<CreateMode, null>) {
     setMode(nextMode);
@@ -55,6 +72,13 @@ export function DashboardWorkbench({
 
   async function saveIdea(event: FormEvent) {
     event.preventDefault();
+    if (guestMode) {
+      createGuestIdea(idea);
+      setIdea("");
+      setVisibleStats(guestStats(readGuestContents()));
+      setMessage("灵感已保存在当前设备，可以去内容库开始推进。");
+      return;
+    }
     if (!canWrite) {
       setMessage("当前是本地预览模式，不会写入真实数据；恢复登录后即可保存。");
       return;
@@ -80,6 +104,13 @@ export function DashboardWorkbench({
 
   async function createContent(event: FormEvent) {
     event.preventDefault();
+    if (guestMode) {
+      createGuestContent(contentForm);
+      setContentForm({ title: "", direction: "", draft: "" });
+      setVisibleStats(guestStats(readGuestContents()));
+      setMessage("内容和粗稿已保存在当前设备，登录后可以同步到云端。");
+      return;
+    }
     if (!canWrite) {
       setMessage("当前是本地预览模式，不会写入真实数据；恢复登录后即可保存。");
       return;

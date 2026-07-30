@@ -2,6 +2,7 @@ import { DashboardWorkbench } from "@/components/dashboard-workbench";
 import { buildContentProjects } from "@/lib/content-projects";
 import { localPreviewBypass, supabaseConfigured } from "@/lib/config";
 import { loadRelated, loadRows } from "@/lib/load-data";
+import { createClient } from "@/lib/supabase/server";
 import type {
   Inspiration,
   MetricSnapshot,
@@ -12,6 +13,8 @@ import type {
 } from "@/lib/types";
 
 export default async function DashboardPage() {
+  const supabase = await createClient();
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   const [inspirations, topics, scripts, publications] = await Promise.all([
     loadRows<Inspiration>("inspirations"),
     loadRows<Topic>("topics"),
@@ -33,7 +36,8 @@ export default async function DashboardPage() {
 
   return (
     <DashboardWorkbench
-      canWrite={supabaseConfigured && !localPreviewBypass}
+      canWrite={Boolean(user) && supabaseConfigured && !localPreviewBypass}
+      guestMode={!user && supabaseConfigured && !localPreviewBypass}
       stats={{
         ideas: projects.filter((item) => item.stage === "idea").length,
         active: projects.filter((item) => item.stage === "rough_draft" || item.stage === "ai_optimized").length,

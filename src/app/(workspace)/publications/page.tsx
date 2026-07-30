@@ -3,6 +3,7 @@ import { SetupBanner } from "@/components/setup-banner";
 import { PublicationsManager } from "@/components/publications-manager";
 import { loadRelated, loadRows } from "@/lib/load-data";
 import type { MetricSnapshot, Publication, Script, ScriptVersion } from "@/lib/types";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function PublicationsPage({
   searchParams,
@@ -10,6 +11,8 @@ export default async function PublicationsPage({
   searchParams: Promise<{ script?: string | string[]; version?: string | string[] }>;
 }) {
   const requested = await searchParams;
+  const supabase = await createClient();
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   const initialScriptId = Array.isArray(requested.script) ? requested.script[0] : requested.script;
   const initialVersionId = Array.isArray(requested.version) ? requested.version[0] : requested.version;
   const [publications, scripts] = await Promise.all([
@@ -35,6 +38,7 @@ export default async function PublicationsPage({
         versions={versions}
         initialScriptId={initialScriptId}
         initialVersionId={initialVersionId}
+        authenticated={Boolean(user)}
       />
     </>
   );

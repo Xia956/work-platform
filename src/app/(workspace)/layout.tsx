@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { ProfileMenu } from "@/components/profile-menu";
+import { GuestImportPrompt } from "@/components/guest-import-prompt";
 import { localPreviewBypass, supabaseConfigured } from "@/lib/config";
 import { createClient } from "@/lib/supabase/server";
 
@@ -10,9 +11,10 @@ export const dynamic = "force-dynamic";
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+  const authenticated = Boolean(user);
   const accountLabel = localPreviewBypass
     ? "本地预览"
-    : (user?.email ?? (supabaseConfigured ? "已登录" : "待连接数据源"));
+    : (user?.email ?? (supabaseConfigured ? "访客模式" : "待连接数据源"));
 
   return (
     <div className="min-h-screen bg-[#f2eee6]">
@@ -28,19 +30,21 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
         </Link>
         <SidebarNav />
         <div className="mt-auto pt-4">
-          <ProfileMenu email={accountLabel} />
+          <ProfileMenu email={accountLabel} authenticated={authenticated} />
         </div>
       </aside>
       <div className="fixed right-4 top-4 z-40 md:hidden">
         <ProfileMenu
           compact
           email={accountLabel}
+          authenticated={authenticated}
         />
       </div>
       <main className="mobile-safe-bottom min-h-screen px-3 pb-4 pt-[68px] md:ml-60 md:px-8 md:py-10 xl:px-12">
         <div className="mx-auto max-w-7xl">{children}</div>
       </main>
       <SidebarNav />
+      <GuestImportPrompt authenticated={authenticated} />
     </div>
   );
 }

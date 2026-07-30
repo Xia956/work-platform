@@ -3,14 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { localPreviewBypass } from "@/lib/config";
 
 const protectedPrefixes = [
-  "/dashboard",
-  "/content",
+  "/settings",
   "/inspirations",
   "/topics",
   "/scripts",
-  "/benchmarks",
-  "/publications",
-  "/settings",
 ];
 
 export async function proxy(request: NextRequest) {

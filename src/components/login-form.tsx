@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { ArrowRight, Mail } from "lucide-react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { safeNextPath } from "@/lib/validation";
@@ -93,6 +94,12 @@ export function LoginForm({
       <p className="mt-4 text-center text-xs leading-5 text-[#8a8278]">
         无需密码；登录链接只能使用一次，请打开最新邮件。
       </p>
+      <Link
+        href={safeNextPath(nextPath)}
+        className="btn-ghost mt-3 w-full text-xs"
+      >
+        暂不登录，先体验
+      </Link>
     </form>
   );
 }

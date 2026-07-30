@@ -3,6 +3,8 @@ import { PageHeader } from "@/components/page-header";
 import { SetupBanner } from "@/components/setup-banner";
 import { buildContentProjects } from "@/lib/content-projects";
 import { loadRelated, loadRows } from "@/lib/load-data";
+import { localPreviewBypass, supabaseConfigured } from "@/lib/config";
+import { createClient } from "@/lib/supabase/server";
 import type {
   Inspiration,
   MetricSnapshot,
@@ -25,6 +27,8 @@ export default async function ContentPage({
   const initialFilter: ContentFilter = validFilters.includes(requestedStage as ContentFilter)
     ? requestedStage as ContentFilter
     : "all";
+  const supabase = await createClient();
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   const [inspirations, topics, scripts, publications] = await Promise.all([
     loadRows<Inspiration>("inspirations"),
     loadRows<Topic>("topics"),
@@ -52,7 +56,11 @@ export default async function ContentPage({
         description="集中查看和推进已有内容，从灵感、粗稿和 AI 优化，一路走到发布与复盘。"
       />
       <SetupBanner />
-      <ContentLibrary initialProjects={projects} initialFilter={initialFilter} />
+      <ContentLibrary
+        initialProjects={projects}
+        initialFilter={initialFilter}
+        guestMode={!user && supabaseConfigured && !localPreviewBypass}
+      />
     </>
   );
 }

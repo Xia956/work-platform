@@ -3,8 +3,11 @@ import { SetupBanner } from "@/components/setup-banner";
 import { BenchmarksManager, type BenchmarkVideoView } from "@/components/benchmarks-manager";
 import { loadRelated, loadRows } from "@/lib/load-data";
 import type { BenchmarkAccount, BenchmarkSource } from "@/lib/types";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function BenchmarksPage() {
+  const supabase = await createClient();
+  const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   const sources = await loadRows<BenchmarkSource>("benchmark_sources");
   const [videos, accounts] = await Promise.all([
     loadRelated<BenchmarkVideoView>(
@@ -30,6 +33,7 @@ export default async function BenchmarksPage() {
         initialSources={sources}
         initialVideos={videos}
         initialAccounts={accounts}
+        authenticated={Boolean(user)}
       />
     </>
   );

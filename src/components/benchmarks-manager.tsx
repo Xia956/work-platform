@@ -14,6 +14,7 @@ import {
 import { EmptyState } from "@/components/empty-state";
 import type { BenchmarkAccount, BenchmarkSource } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
+import { LoginRequiredDialog } from "@/components/login-required-dialog";
 
 export interface BenchmarkVideoView {
   id: string;
@@ -39,10 +40,12 @@ export function BenchmarksManager({
   initialSources,
   initialVideos,
   initialAccounts,
+  authenticated,
 }: {
   initialSources: BenchmarkSource[];
   initialVideos: BenchmarkVideoView[];
   initialAccounts: BenchmarkAccount[];
+  authenticated: boolean;
 }) {
   const [sources, setSources] = useState(initialSources);
   const [videos, setVideos] = useState(initialVideos);
@@ -52,6 +55,7 @@ export function BenchmarksManager({
   const [message, setMessage] = useState("");
   const [supplements, setSupplements] = useState<Record<string, string>>({});
   const [corrections, setCorrections] = useState<Record<string, Record<string, string>>>({});
+  const [loginReason, setLoginReason] = useState("");
 
   function mergeEntity(source: BenchmarkSource, entity?: BenchmarkVideoView | BenchmarkAccount | null) {
     if (!entity) return;
@@ -64,6 +68,10 @@ export function BenchmarksManager({
 
   async function importLink(event: FormEvent) {
     event.preventDefault();
+    if (!authenticated) {
+      setLoginReason("保存和解析对标资料需要登录，避免链接丢失并保护解析与 AI 调用额度。");
+      return;
+    }
     setBusy("import");
     setMessage("");
     const response = await fetch("/api/benchmarks/import", {
@@ -341,6 +349,12 @@ export function BenchmarksManager({
           <EmptyState title="还没有对标资料" description="粘贴一个公开抖音链接，系统会先保存，再尝试解析。" />
         )}
       </section>
+      <LoginRequiredDialog
+        open={Boolean(loginReason)}
+        reason={loginReason}
+        nextPath="/benchmarks"
+        onClose={() => setLoginReason("")}
+      />
     </>
   );
 }

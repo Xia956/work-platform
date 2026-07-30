@@ -5,6 +5,7 @@ import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { createEmailRequestClient } from "@/lib/supabase/email-flow-client";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { safeNextPath } from "@/lib/validation";
 
@@ -67,9 +68,9 @@ export function LoginForm({
         return;
       }
 
-      const callback = new URL("/auth/callback", window.location.origin);
+      const callback = new URL("/auth/complete", window.location.origin);
       callback.searchParams.set("next", destination);
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await createEmailRequestClient().auth.signUp({
         email: normalizedEmail,
         password,
         options: { emailRedirectTo: callback.toString() },

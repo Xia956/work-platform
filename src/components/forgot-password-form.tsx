@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { ArrowRight, Mail } from "lucide-react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { createEmailRequestClient } from "@/lib/supabase/email-flow-client";
 import { getAuthErrorMessage } from "@/lib/auth-errors";
 import { safeNextPath } from "@/lib/validation";
 
@@ -26,12 +26,9 @@ export function ForgotPasswordForm({
     setBusy(true);
     setMessage("");
     try {
-      const callback = new URL("/auth/callback", window.location.origin);
-      callback.searchParams.set(
-        "next",
-        `/update-password?next=${encodeURIComponent(destination)}`,
-      );
-      const { error } = await createClient().auth.resetPasswordForEmail(
+      const callback = new URL("/auth/complete", window.location.origin);
+      callback.searchParams.set("next", destination);
+      const { error } = await createEmailRequestClient().auth.resetPasswordForEmail(
         email.trim().toLowerCase(),
         { redirectTo: callback.toString() },
       );

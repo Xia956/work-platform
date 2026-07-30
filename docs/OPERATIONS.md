@@ -16,7 +16,7 @@
 1. 按 `supabase/migrations/` 文件名顺序应用迁移。
 2. Authentication → URL Configuration：
    - Site URL 设置为生产域名。
-   - Redirect URLs 加入本地与生产 `/auth/callback`。
+   - Redirect URLs 加入本地与生产 `/auth/callback` 和 `/auth/complete`。
 3. 正式使用建议配置自定义 SMTP。
 
 Supabase 默认 SMTP 有严格额度。项目的日常登录使用邮箱 + 密码，只有注册确认和找回密码需要发送邮件。生产环境建议配置自定义 SMTP，避免默认邮件额度影响新用户注册和密码找回。

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Noto_Sans_SC } from "next/font/google";
+import { EmailAuthRedirect } from "@/components/email-auth-redirect";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import "./globals.css";
 
@@ -34,6 +35,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" className={`${notoSans.variable} h-full antialiased`}>
       <body className="min-h-full">
+        <EmailAuthRedirect />
         {children}
         <ServiceWorkerRegister />
       </body>

@@ -18,6 +18,8 @@ export default async function LoginPage({
   const initialMessage =
     params.error === "auth_callback"
       ? "验证链接无效或已过期，请重新操作。"
+      : params.error === "email_link"
+        ? "邮件链接无效或已过期，请使用最新一封邮件。"
       : undefined;
 
   return (

@@ -17,7 +17,7 @@ export default async function LoginPage({
   }
   const initialMessage =
     params.error === "auth_callback"
-      ? "登录链接无效或已过期，请重新发送。"
+      ? "验证链接无效或已过期，请重新操作。"
       : undefined;
 
   return (
@@ -26,7 +26,7 @@ export default async function LoginPage({
         <div className="mb-7 text-center">
           <span className="mx-auto grid size-14 place-items-center rounded-[20px] bg-[#f46f4c] text-2xl text-white">播</span>
           <h1 className="mt-5 text-3xl font-black tracking-[-0.05em]">登录并同步内容</h1>
-          <p className="mt-2 text-sm text-[#706b62]">不登录也能先体验；登录后可云端保存和跨设备使用。</p>
+          <p className="mt-2 text-sm text-[#706b62]">日常使用邮箱和密码登录；不登录也能先体验。</p>
         </div>
         <LoginForm
           configured={supabaseConfigured}

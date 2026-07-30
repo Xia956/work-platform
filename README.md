@@ -49,7 +49,7 @@
    supabase db push
    ```
 
-5. 登录默认使用 Supabase 邮箱登录链接。把本地与生产域名加入 Auth URL Configuration；部署后将 Site URL 更新为生产域名。
+5. 登录默认使用 Supabase 邮箱 + 密码。注册和找回密码需要邮件验证；把本地与生产域名加入 Auth URL Configuration，部署后将 Site URL 更新为生产域名。
 
 6. 设置 `OPENAI_API_KEY`。`OPENAI_MODEL` 默认使用 `gpt-5.6-sol`，可按账号可用模型修改。
 

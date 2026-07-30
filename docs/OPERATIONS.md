@@ -19,7 +19,9 @@
    - Redirect URLs 加入本地与生产 `/auth/callback`。
 3. 正式使用建议配置自定义 SMTP。
 
-Supabase 默认 SMTP 有严格额度，并且不允许编辑邮件模板。部分邮箱安全扫描器会预先访问 Magic Link，导致 `otp_expired`。项目包含 `/auth/confirm` 二次确认页；配置自定义 SMTP 后，可将 Magic Link 模板改为基于 `TokenHash` 的用户主动确认流程。
+Supabase 默认 SMTP 有严格额度。项目的日常登录使用邮箱 + 密码，只有注册确认和找回密码需要发送邮件。生产环境建议配置自定义 SMTP，避免默认邮件额度影响新用户注册和密码找回。
+
+为了让用户长期保持登录，请在 Auth 的 Sessions 设置中关闭不必要的固定时长、闲置超时和单会话限制，或按产品需要设置足够长的时间。客户端会通过 Proxy 自动刷新 Supabase 会话，认证 Cookie 使用 Supabase SSR 的长期有效期；用户主动退出、清除浏览器网站数据或 Supabase 侧会话限制仍会结束登录。
 
 ## Vercel
 
@@ -55,7 +57,7 @@ vercel deploy --prod
 | 问题 | 首要检查 |
 | --- | --- |
 | 邮件发送失败 | Supabase Auth Logs、SMTP 配额 |
-| `otp_expired` | 是否使用最新邮件、邮件安全预取、自定义 SMTP |
+| 注册/重置邮件过期 | 是否使用最新邮件、Redirect URL 是否已加入允许列表、自定义 SMTP 是否正常 |
 | 数据保存失败 | Supabase Postgres Logs、迁移是否全部应用 |
 | AI 返回 401 | 登录会话是否有效 |
 | AI 返回配置错误 | Vercel 的 `OPENAI_API_KEY` 与 `OPENAI_MODEL` |

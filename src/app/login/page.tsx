@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
-import { supabaseConfigured } from "@/lib/config";
+import { localPreviewBypass, supabaseConfigured } from "@/lib/config";
 import { createClient } from "@/lib/supabase/server";
 import { safeNextPath } from "@/lib/validation";
 
@@ -11,6 +11,7 @@ export default async function LoginPage({
 }) {
   const supabase = await createClient();
   const params = await searchParams;
+  if (localPreviewBypass) redirect(safeNextPath(params.next));
   if (supabase && (await supabase.auth.getUser()).data.user) {
     redirect(safeNextPath(params.next));
   }

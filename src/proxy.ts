@@ -1,8 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { localPreviewBypass } from "@/lib/config";
 
 const protectedPrefixes = [
   "/dashboard",
+  "/content",
   "/inspirations",
   "/topics",
   "/scripts",
@@ -12,6 +14,7 @@ const protectedPrefixes = [
 ];
 
 export async function proxy(request: NextRequest) {
+  if (localPreviewBypass) return NextResponse.next();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) return NextResponse.next();

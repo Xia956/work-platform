@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { SidebarNav } from "@/components/sidebar-nav";
-import { LogoutButton } from "@/components/logout-button";
-import { supabaseConfigured } from "@/lib/config";
+import { ProfileMenu } from "@/components/profile-menu";
+import { localPreviewBypass, supabaseConfigured } from "@/lib/config";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +10,9 @@ export const dynamic = "force-dynamic";
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+  const accountLabel = localPreviewBypass
+    ? "本地预览"
+    : (user?.email ?? (supabaseConfigured ? "已登录" : "待连接数据源"));
 
   return (
     <div className="min-h-screen bg-[#f2eee6]">
@@ -24,14 +27,17 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           </span>
         </Link>
         <SidebarNav />
-        <div className="mt-auto border-t border-[#d9d1c5] pt-4">
-          <p className="mb-2 truncate px-2 text-[11px] text-[#81796e]">
-            {user?.email ?? (supabaseConfigured ? "已登录" : "待连接数据源")}
-          </p>
-          {user ? <LogoutButton /> : null}
+        <div className="mt-auto pt-4">
+          <ProfileMenu email={accountLabel} />
         </div>
       </aside>
-      <main className="mobile-safe-bottom min-h-screen px-4 py-6 md:ml-60 md:px-8 md:py-10 xl:px-12">
+      <div className="fixed right-4 top-4 z-40 md:hidden">
+        <ProfileMenu
+          compact
+          email={accountLabel}
+        />
+      </div>
+      <main className="mobile-safe-bottom min-h-screen px-3 pb-4 pt-[68px] md:ml-60 md:px-8 md:py-10 xl:px-12">
         <div className="mx-auto max-w-7xl">{children}</div>
       </main>
       <SidebarNav />

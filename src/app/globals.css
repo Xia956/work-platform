@@ -59,6 +59,21 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding-left: 2.6rem;
 }
 
+.field.filter-select {
+  height: 46px;
+  appearance: none;
+  padding: 0 2rem 0 0.85rem;
+  line-height: 1.25rem;
+}
+
+.field.publication-version-trigger {
+  font-size: 14px;
+}
+
+button.publication-version-option {
+  font-size: 13px;
+}
+
 .field:focus {
   border-color: #bd7058;
   box-shadow: 0 0 0 3px rgb(185 87 58 / 10%);

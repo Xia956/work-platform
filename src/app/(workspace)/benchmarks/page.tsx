@@ -23,7 +23,7 @@ export default async function BenchmarksPage() {
       <PageHeader
         eyebrow="Reference"
         title="对标资料库"
-        description="只需粘贴抖音账号或视频链接。系统会尝试读取公开信息，并明确告诉你分析依据和缺失内容。"
+        description="粘贴完整抖音分享文案或链接，系统会提取短链、识别内容类型，并明确标出仍需补充的信息。"
       />
       <SetupBanner />
       <BenchmarksManager

@@ -8,7 +8,9 @@ export interface Inspiration {
   content: string;
   tags: string[];
   status: InspirationStatus;
+  is_demo?: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Topic {
@@ -21,7 +23,9 @@ export interface Topic {
   priority: number;
   status: TopicStatus;
   inspiration_id: string | null;
+  is_demo?: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Script {
@@ -33,7 +37,9 @@ export interface Script {
   current_version_id: string | null;
   autosave_content: string;
   autosaved_at: string | null;
+  is_demo?: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface ScriptVersion {
@@ -47,6 +53,7 @@ export interface ScriptVersion {
   optimization_prompt: string | null;
   change_summary: string | null;
   estimated_duration: number | null;
+  is_demo?: boolean;
   created_at: string;
 }
 
@@ -96,4 +103,26 @@ export interface MetricSnapshot {
   followers_gained: number;
   completion_rate: number | null;
   avg_watch_time: number | null;
+}
+
+export type ContentStage =
+  | "idea"
+  | "rough_draft"
+  | "ai_optimized"
+  | "ready"
+  | "published";
+
+export interface ContentProject {
+  id: string;
+  title: string;
+  stage: ContentStage;
+  stageIndex: number;
+  progress: number;
+  updatedAt: string;
+  inspiration: Inspiration | null;
+  topic: Topic | null;
+  script: Script | null;
+  versions: ScriptVersion[];
+  publication: Publication | null;
+  snapshots: MetricSnapshot[];
 }

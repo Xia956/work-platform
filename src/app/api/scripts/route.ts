@@ -18,6 +18,11 @@ const mutationSchema = z.discriminatedUnion("action", [
     versionType: z.enum(["manual_edit", "restored"]),
     summary: z.string().max(500).optional(),
   }),
+  z.object({
+    action: z.literal("updateStatus"),
+    scriptId: z.string().uuid(),
+    status: z.enum(["drafting", "ready", "published", "archived"]),
+  }),
 ]);
 
 async function getAuth() {
@@ -68,6 +73,19 @@ export async function PATCH(request: Request) {
     return error
       ? NextResponse.json({ error: databaseError(error.message, "自动保存失败") }, { status: 400 })
       : NextResponse.json({ ok: true });
+  }
+
+  if (parsed.data.action === "updateStatus") {
+    const { data, error } = await auth.supabase!
+      .from("scripts")
+      .update({ status: parsed.data.status })
+      .eq("id", parsed.data.scriptId)
+      .eq("user_id", auth.user!.id)
+      .select()
+      .single();
+    return error
+      ? NextResponse.json({ error: databaseError(error.message, "状态更新失败") }, { status: 400 })
+      : NextResponse.json({ data });
   }
 
   const { data, error } = await auth.supabase!.rpc("append_script_version", {

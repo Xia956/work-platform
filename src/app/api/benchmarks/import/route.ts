@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { benchmarkUrlSchema } from "@/lib/validation";
 import {
   classifyDouyinUrl,
+  extractDouyinShare,
   extractDouyinMetadata,
   fetchPublicDouyinPage,
   normalizeDouyinUrl,
@@ -24,11 +25,13 @@ export async function POST(request: Request) {
   const body = await readJson(request);
   if (!body.ok) return body.response;
   const parsed = importSchema.safeParse(body.value);
-  if (!parsed.success) return NextResponse.json({ error: "请输入有效的抖音链接" }, { status: 422 });
+  if (!parsed.success) return NextResponse.json({ error: "请粘贴有效的抖音链接或分享文案" }, { status: 422 });
 
   let initialNormalized: string;
+  let share: ReturnType<typeof extractDouyinShare>;
   try {
-    initialNormalized = normalizeDouyinUrl(parsed.data.url);
+    share = extractDouyinShare(parsed.data.url);
+    initialNormalized = normalizeDouyinUrl(share.url);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "链接无效" }, { status: 422 });
   }
@@ -58,7 +61,7 @@ export async function POST(request: Request) {
   } else {
     const { data: inserted, error: insertError } = await supabase.from("benchmark_sources").insert({
       user_id: auth.user.id,
-      original_url: parsed.data.url,
+      original_url: share.url,
       normalized_url: initialNormalized,
       source_type: classifyDouyinUrl(initialNormalized),
       parse_status: "parsing",
@@ -79,9 +82,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { html, finalUrl } = await fetchPublicDouyinPage(parsed.data.url);
+    const { html, finalUrl, warning: pageWarning } = await fetchPublicDouyinPage(share.url);
     const sourceType = classifyDouyinUrl(finalUrl);
-    const metadata = extractDouyinMetadata(html, finalUrl);
+    const publicMetadata = extractDouyinMetadata(html, finalUrl);
+    const metadata = {
+      ...publicMetadata,
+      title: publicMetadata.title ?? share.title,
+      description: publicMetadata.description ?? share.description,
+    };
     const { data: resolvedDuplicate } = await supabase
       .from("benchmark_sources")
       .select("*")
@@ -107,7 +115,7 @@ export async function POST(request: Request) {
       parse_status: parseStatus,
       parsed_metadata: metadata,
       parsed_at: new Date().toISOString(),
-      error_message: sufficient ? null : "页面未提供足够的公开文字，可补充文案或摘要",
+      error_message: pageWarning ?? (sufficient ? null : "页面未提供足够的公开文字，可补充文案或摘要"),
     }).eq("id", source.id).select().single();
     if (updateError) throw updateError;
 
@@ -170,7 +178,7 @@ export async function POST(request: Request) {
       if (error) throw error;
       entity = video;
     }
-    return NextResponse.json({ data: updated, entity }, { status: created ? 201 : 200 });
+    return NextResponse.json({ data: updated, entity, warning: pageWarning }, { status: created ? 201 : 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "解析失败";
     const { data: updated } = await supabase.from("benchmark_sources").update({

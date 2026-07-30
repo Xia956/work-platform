@@ -7,6 +7,29 @@ export const MAX_REDIRECTS = 4;
 
 export type DouyinSourceType = "account" | "video" | "unknown";
 
+export function extractDouyinShare(input: string) {
+  const candidates = input.match(/https:\/\/[^\s<>"']+/gi) ?? [];
+  for (const candidate of candidates) {
+    const cleaned = candidate.replace(/[，。！？；：、）】}>.,!?;:]+$/u, "");
+    try {
+      const url = new URL(cleaned);
+      if (!isAllowedDouyinHost(url.hostname)) continue;
+      const title = input.match(/【([^】]{1,160})】/u)?.[1]?.trim() || null;
+      const urlIndex = input.indexOf(candidate);
+      const beforeUrl = urlIndex >= 0 ? input.slice(0, urlIndex) : "";
+      const afterTitle = beforeUrl.replace(/^[\s\S]*?【[^】]+】/u, "").trim();
+      const description = afterTitle
+        .replace(/^\s*[-—:：]?\s*/u, "")
+        .replace(/\s+/gu, " ")
+        .trim() || null;
+      return { url: cleaned, title, description };
+    } catch {
+      // Continue until a valid, allow-listed Douyin URL is found.
+    }
+  }
+  throw new Error("没有找到有效的抖音链接");
+}
+
 export function isAllowedDouyinHost(hostname: string) {
   const host = hostname.toLowerCase().replace(/\.$/, "");
   return allowedDomains.some((domain) => host === domain || host.endsWith(`.${domain}`));
@@ -169,7 +192,17 @@ export async function fetchPublicDouyinPage(
       current = new URL(location, current);
       continue;
     }
-    if (!response.ok) throw new Error(`公开页面暂时不可访问（${response.status}）`);
+    if (!response.ok) {
+      const finalUrl = normalizeDouyinUrl(current.toString());
+      if (classifyDouyinUrl(finalUrl) !== "unknown") {
+        return {
+          html: "",
+          finalUrl,
+          warning: `已识别链接，但抖音公开页面暂时不可访问（${response.status}）`,
+        };
+      }
+      throw new Error(`公开页面暂时不可访问（${response.status}）`);
+    }
     const contentType = response.headers.get("content-type") ?? "";
     if (!contentType.includes("text/html")) throw new Error("链接返回的不是公开网页");
     const contentLength = Number(response.headers.get("content-length"));
@@ -197,7 +230,7 @@ export async function fetchPublicDouyinPage(
       offset += chunk.byteLength;
     }
     const finalUrl = normalizeDouyinUrl(current.toString());
-    return { html: new TextDecoder().decode(bytes), finalUrl };
+    return { html: new TextDecoder().decode(bytes), finalUrl, warning: null };
   }
   throw new Error("分享链接跳转次数过多");
 }

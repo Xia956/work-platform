@@ -36,7 +36,9 @@ export const optimizeSchema = z.object({
   instruction: z.string().trim().max(1000).default(""),
 });
 
-export const benchmarkUrlSchema = z.object({ url: z.string().url().max(2048) });
+export const benchmarkUrlSchema = z.object({
+  url: z.string().trim().min(1, "请粘贴抖音链接或分享文案").max(4096),
+});
 
 export const publicationSchema = z.object({
   title: z.string().trim().min(1).max(160),

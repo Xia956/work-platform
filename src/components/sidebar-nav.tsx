@@ -6,21 +6,15 @@ import {
   BarChart3,
   BookOpenText,
   Home,
-  Lightbulb,
-  ListChecks,
   Radio,
-  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/dashboard", label: "工作台", icon: Home },
-  { href: "/inspirations", label: "灵感", icon: Lightbulb },
-  { href: "/topics", label: "选题", icon: ListChecks },
-  { href: "/scripts", label: "文案", icon: BookOpenText },
+  { href: "/content", label: "内容", icon: BookOpenText },
   { href: "/benchmarks", label: "对标", icon: Radio },
   { href: "/publications", label: "复盘", icon: BarChart3 },
-  { href: "/settings", label: "设置", icon: Settings },
 ];
 
 export function SidebarNav() {
@@ -48,7 +42,7 @@ export function SidebarNav() {
         })}
       </nav>
       <nav className="fixed inset-x-3 bottom-3 z-50 flex items-center justify-around rounded-lg border border-[#d9d1c5] bg-[#fbfaf6]/95 px-1 py-1.5 shadow-[0_8px_24px_rgb(36_29_22/12%)] backdrop-blur md:hidden">
-        {items.slice(0, 6).map(({ href, label, icon: Icon }) => {
+        {items.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href);
           return (
             <Link

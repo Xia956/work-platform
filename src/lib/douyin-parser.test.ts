@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyDouyinUrl,
+  extractDouyinShare,
   extractDouyinMetadata,
   fetchPublicDouyinPage,
   isAllowedDouyinHost,
@@ -10,6 +11,23 @@ import {
 } from "@/lib/douyin-parser";
 
 describe("douyin URL safety", () => {
+  it("extracts a Douyin short link and fallback metadata from full share text", () => {
+    const share = extractDouyinShare(
+      "9.25 复制打开抖音，看看【1702409413的作品】# 伤心大圆啵 # 张诗婷  https://v.douyin.com/gZbCoVCW4Io/ Ivs:/ Z@z.Ty 09/17 :8pm",
+    );
+    expect(share).toEqual({
+      url: "https://v.douyin.com/gZbCoVCW4Io/",
+      title: "1702409413的作品",
+      description: "# 伤心大圆啵 # 张诗婷",
+    });
+  });
+
+  it("ignores unrelated links and requires an allow-listed Douyin URL", () => {
+    expect(extractDouyinShare("参考 https://example.com 后打开 https://v.douyin.com/abc/").url)
+      .toBe("https://v.douyin.com/abc/");
+    expect(() => extractDouyinShare("只有 https://example.com")).toThrow("没有找到");
+  });
+
   it("allows known Douyin hosts and rejects lookalikes", () => {
     expect(isAllowedDouyinHost("v.douyin.com")).toBe(true);
     expect(isAllowedDouyinHost("www.douyin.com")).toBe(true);
@@ -90,6 +108,30 @@ describe("Douyin fetch safety", () => {
       fetcher,
       lookupHost,
     })).rejects.toThrow("跳转次数过多");
+  });
+
+  it("keeps a resolved canonical video when the public detail page is unavailable", async () => {
+    let requestCount = 0;
+    const fetcher = (async () => {
+      requestCount += 1;
+      if (requestCount === 1) {
+        return new Response(null, {
+          status: 302,
+          headers: { location: "https://www.douyin.com/video/7656514231807146353" },
+        });
+      }
+      return new Response("Not found", {
+        status: 404,
+        headers: { "content-type": "text/plain" },
+      });
+    }) as typeof fetch;
+    await expect(fetchPublicDouyinPage("https://v.douyin.com/example", {
+      fetcher,
+      lookupHost,
+    })).resolves.toMatchObject({
+      finalUrl: "https://www.douyin.com/video/7656514231807146353",
+      html: "",
+    });
   });
 
   it("rejects oversized responses before reading the body", async () => {

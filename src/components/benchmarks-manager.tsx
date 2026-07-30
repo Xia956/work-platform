@@ -162,36 +162,37 @@ export function BenchmarksManager({
 
   return (
     <>
-      <form onSubmit={importLink} className="paper rounded-3xl p-5 sm:p-7">
+      <form onSubmit={importLink} className="paper rounded-lg p-4 sm:rounded-3xl sm:p-7">
         <div className="flex items-center gap-2">
-          <span className="grid size-10 place-items-center rounded-2xl bg-[#fff0e9] text-[#e35f3f]"><Link2 className="size-5" /></span>
+          <span className="grid size-9 place-items-center rounded-lg bg-[#fff0e9] text-[#e35f3f] sm:size-10 sm:rounded-2xl"><Link2 className="size-5" /></span>
           <div>
-            <h2 className="font-black">粘贴一个抖音链接</h2>
-            <p className="text-xs text-[#82796f]">支持账号主页、视频长链和分享短链</p>
+            <h2 className="font-black">粘贴抖音分享内容</h2>
+            <p className="text-xs text-[#82796f]">支持完整分享文案、账号主页、视频长链和短链</p>
           </div>
         </div>
-        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+        <div className="mt-3 flex gap-2 sm:mt-5">
           <input
             className="field flex-1"
             value={url}
             onChange={(event) => setUrl(event.target.value)}
-            placeholder="https://v.douyin.com/..."
-            type="url"
+            placeholder="粘贴链接或“复制打开抖音”的整段文字"
+            type="text"
             required
             aria-label="抖音链接"
           />
-          <button className="btn-primary sm:min-w-32" disabled={busy === "import"}>
+          <button className="btn-primary shrink-0 px-3 sm:min-w-32" disabled={busy === "import"}>
             {busy === "import" ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-            {busy === "import" ? "解析中…" : "保存并解析"}
+            <span className="hidden sm:inline">{busy === "import" ? "解析中…" : "保存并解析"}</span>
+            <span className="sm:hidden">{busy === "import" ? "解析" : "保存"}</span>
           </button>
         </div>
-        <p className="mt-3 text-xs leading-5 text-[#8b8277]">只读取无需登录即可访问的公开网页，不下载视频，也不会绕过验证码或访问限制。</p>
+        <p className="mt-2 hidden text-xs leading-5 text-[#8b8277] sm:block">会自动从分享文案中提取链接；只读取无需登录即可访问的公开网页，不下载视频，也不会绕过访问限制。</p>
         {message ? <p className="mt-3 text-sm font-semibold text-[#9b503c]">{message}</p> : null}
       </form>
 
-      <section className="mt-6">
+      <section className="mt-3 sm:mt-6">
         {sources.length ? (
-          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
             {sources.map((source) => {
               const status = statusInfo[source.parse_status];
               const StatusIcon = status.icon;
@@ -208,15 +209,15 @@ export function BenchmarksManager({
               } | null;
 
               return (
-                <article key={source.id} className="paper overflow-hidden rounded-3xl">
-                  <div className="p-5 sm:p-6">
+                <article key={source.id} className="paper overflow-hidden rounded-lg sm:rounded-3xl">
+                  <div className="p-4 sm:p-6">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${status.color}`}>
                           <StatusIcon className={`size-3.5 ${source.parse_status === "parsing" ? "animate-spin" : ""}`} />
                           {status.label} · {source.source_type === "account" ? "账号" : source.source_type === "video" ? "视频" : "待识别"}
                         </span>
-                        <h3 className="mt-3 line-clamp-2 text-lg font-black">{title}</h3>
+                        <h3 className="mt-2 line-clamp-2 text-base font-black sm:mt-3 sm:text-lg">{title}</h3>
                         {video?.author_name ? <p className="mt-1 text-xs text-[#877e73]">作者：{video.author_name}</p> : null}
                         {account?.douyin_id ? <p className="mt-1 text-xs text-[#877e73]">抖音号：{account.douyin_id}</p> : null}
                       </div>
@@ -224,7 +225,7 @@ export function BenchmarksManager({
                         <Trash2 className="size-4" />
                       </button>
                     </div>
-                    <a href={source.normalized_url || source.original_url} target="_blank" rel="noreferrer" className="mt-4 flex items-center gap-1.5 truncate text-xs font-semibold text-[#e35f3f]">
+                    <a href={source.normalized_url || source.original_url} target="_blank" rel="noreferrer" className="mt-3 flex items-center gap-1.5 truncate text-xs font-semibold text-[#e35f3f] sm:mt-4">
                       查看原链接 <ExternalLink className="size-3" />
                     </a>
                     {video?.description ? <p className="mt-4 line-clamp-3 text-sm leading-6 text-[#706b62]">{video.description}</p> : null}
@@ -317,7 +318,7 @@ export function BenchmarksManager({
                         {video?.ai_analysis ? "重新拆解" : "AI 拆解"}
                       </button>
                     ) : null}
-                    <p className="mt-4 text-[10px] text-[#a1988d]">保存于 {formatDate(source.created_at)}</p>
+                    <p className="mt-3 text-[10px] text-[#a1988d] sm:mt-4">保存于 {formatDate(source.created_at)}</p>
                   </div>
                   {analysis ? (
                     <div className="border-t border-[#e7e0d5] bg-[#f4f0e8] p-5 sm:p-6">

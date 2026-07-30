@@ -2,6 +2,8 @@
 
 面向抖音口播创作者的中文网页工作台。支持灵感、选题、粗稿与版本化文案、对标链接解析、AI 拆解、发布记录、数据快照和 AI 复盘。
 
+当前版本：`v0.2.0`
+
 生产环境：[https://work-platform-eight.vercel.app](https://work-platform-eight.vercel.app)
 
 ## 技术栈
@@ -33,6 +35,7 @@
    - `supabase/migrations/202607280001_initial.sql`
    - `supabase/migrations/202607280002_hardening.sql`
    - `supabase/migrations/202607290003_fix_owned_references_trigger.sql`
+   - `supabase/migrations/202607300004_demo_content.sql`
 
    或使用已连接项目的 Supabase CLI：
 

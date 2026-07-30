@@ -1,8 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { publicConfig } from "@/lib/config";
+import { localPreviewBypass, publicConfig } from "@/lib/config";
 
 export async function createClient() {
+  if (localPreviewBypass) return null;
   if (!publicConfig.supabaseUrl || !publicConfig.supabaseKey) return null;
   const cookieStore = await cookies();
 

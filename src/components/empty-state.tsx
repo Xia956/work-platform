@@ -8,12 +8,12 @@ export function EmptyState({
   description: string;
 }) {
   return (
-    <div className="paper flex min-h-52 flex-col items-center justify-center rounded-3xl px-6 py-10 text-center">
-      <div className="mb-4 grid size-12 place-items-center rounded-2xl bg-[#f2ede4] text-[#8c8274]">
+    <div className="paper flex flex-col items-center justify-center rounded-lg px-5 py-6 text-center sm:min-h-52 sm:rounded-3xl sm:px-6 sm:py-10">
+      <div className="mb-3 grid size-10 place-items-center rounded-xl bg-[#f2ede4] text-[#8c8274] sm:mb-4 sm:size-12 sm:rounded-2xl">
         <Inbox className="size-5" />
       </div>
       <p className="font-bold">{title}</p>
-      <p className="mt-2 max-w-sm text-sm leading-6 text-[#706b62]">{description}</p>
+      <p className="mt-1.5 max-w-sm text-xs leading-5 text-[#706b62] sm:mt-2 sm:text-sm sm:leading-6">{description}</p>
     </div>
   );
 }

@@ -1,0 +1,1 @@
+-- Intentionally empty: production data is always created by authenticated users.

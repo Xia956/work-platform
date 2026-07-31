@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
-  Bot,
   Check,
   Clock3,
   Copy,
@@ -14,6 +13,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { ScriptOptimizationPanel } from "@/components/script-optimization-panel";
+import type { ScriptOptimizationOptions } from "@/lib/script-ai";
 import type { Script, ScriptVersion, Topic } from "@/lib/types";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -25,23 +26,16 @@ const versionLabels: Record<ScriptVersion["version_type"], string> = {
   restored: "恢复版本",
 };
 
-const optimizeActions = [
-  { value: "hook", label: "增强钩子" },
-  { value: "concise", label: "精简表达" },
-  { value: "conversational", label: "增强口语感" },
-  { value: "rhythm", label: "调整节奏" },
-  { value: "cta", label: "重写 CTA" },
-  { value: "custom", label: "自定义" },
-] as const;
-
 export function ScriptStudio({
   initialScripts,
   initialVersions,
   topics,
+  defaultDuration = 60,
 }: {
   initialScripts: Script[];
   initialVersions: ScriptVersion[];
   topics: Topic[];
+  defaultDuration?: number;
 }) {
   const initialSelectedId = initialScripts[0]?.id ?? "";
   const initialSelectedVersion =
@@ -57,12 +51,10 @@ export function ScriptStudio({
     initialScripts[0]?.autosave_content || initialSelectedVersion?.content || "",
   );
   const [sourceVersionId, setSourceVersionId] = useState<string | null>(initialSelectedVersion?.id ?? null);
-  const [optimizeType, setOptimizeType] = useState<(typeof optimizeActions)[number]["value"]>("hook");
-  const [instruction, setInstruction] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [draft, setDraft] = useState({ title: "", topicId: "", content: "", targetDuration: 60 });
+  const [draft, setDraft] = useState({ title: "", topicId: "", content: "", targetDuration: defaultDuration });
 
   const selected = scripts.find((script) => script.id === selectedId) ?? null;
   const selectedVersions = useMemo(
@@ -115,7 +107,7 @@ export function ScriptStudio({
     setEditor(result.data.versions[0]?.content ?? draft.content);
     setSourceVersionId(result.data.versions[0]?.id ?? null);
     setShowCreate(false);
-    setDraft({ title: "", topicId: "", content: "", targetDuration: 60 });
+    setDraft({ title: "", topicId: "", content: "", targetDuration: defaultDuration });
     setMessage("原始粗稿已保存");
   }
 
@@ -150,7 +142,7 @@ export function ScriptStudio({
     return result.data;
   }
 
-  async function optimize() {
+  async function optimize(options: ScriptOptimizationOptions) {
     if (!selected || !sourceVersionId) return;
     let optimizeSourceId = sourceVersionId;
     const sourceVersion = versions.find((version) => version.id === sourceVersionId);
@@ -167,8 +159,8 @@ export function ScriptStudio({
       body: JSON.stringify({
         scriptId: selected.id,
         sourceVersionId: optimizeSourceId,
-        optimizationType: optimizeType,
-        instruction,
+        applyResult: true,
+        ...options,
       }),
     });
     const result = await response.json();
@@ -330,27 +322,13 @@ export function ScriptStudio({
               <Save className="size-4" /> 保存为新版本
             </button>
           </div>
-          <div className="mt-6 rounded-2xl border border-[#f3d7cf] bg-[#fff6f2] p-4">
-            <div className="flex items-center gap-2 font-black"><Bot className="size-5 text-[#f46f4c]" /> AI 优化</div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {optimizeActions.map((action) => (
-                <button
-                  key={action.value}
-                  type="button"
-                  className={cn("rounded-xl border px-3 py-2 text-xs font-bold", optimizeType === action.value ? "border-[#f46f4c] bg-[#f46f4c] text-white" : "border-[#ebd4cd] bg-white text-[#765c55]")}
-                  onClick={() => setOptimizeType(action.value)}
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-            {optimizeType === "custom" ? (
-              <input className="field mt-3" value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="说明你希望如何修改" />
-            ) : null}
-            <button type="button" className="btn-primary mt-3" disabled={busy || !sourceVersionId} onClick={() => void optimize()}>
-              <Sparkles className="size-4" /> {busy ? "正在优化…" : "生成独立优化版本"}
-            </button>
-          </div>
+          <ScriptOptimizationPanel
+            className="mt-6"
+            defaultDuration={defaultDuration}
+            busy={busy}
+            disabled={!sourceVersionId}
+            onSubmit={optimize}
+          />
           {message ? <p className="mt-4 text-sm text-[#9b503c]">{message}</p> : null}
         </section>
       ) : (

@@ -7,6 +7,7 @@ export interface Inspiration {
   title: string;
   content: string;
   tags: string[];
+  workflow_stage?: ContentStage | null;
   status: InspirationStatus;
   is_demo?: boolean;
   created_at: string;

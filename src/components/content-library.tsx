@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  Bot,
   CalendarDays,
   Check,
+  ChevronLeft,
   ChevronDown,
   ChevronRight,
   Clock3,
+  Copy,
   ExternalLink,
   FileText,
   Hash,
@@ -18,11 +19,19 @@ import {
   Rocket,
   Search,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { advanceProjectToDraft, contentStages } from "@/lib/content-projects";
 import type { ContentProject, ContentStage, ScriptVersion, Topic } from "@/lib/types";
 import { cn, formatDate } from "@/lib/utils";
+import { ContentTagPicker } from "@/components/content-tag-picker";
 import { LoginRequiredDialog } from "@/components/login-required-dialog";
+import { ScriptOptimizationPanel } from "@/components/script-optimization-panel";
+import {
+  createDefaultOptimizationOptions,
+  readOptimizationSummary,
+  type ScriptOptimizationOptions,
+} from "@/lib/script-ai";
 import {
   GUEST_CONTENT_CHANGED_EVENT,
   guestContentToProject,
@@ -40,26 +49,30 @@ const stageMeta: Record<ContentStage, { label: string; tone: string; icon: typeo
 
 type LibraryFilter = "all" | "active" | ContentStage;
 
-const optimizationOptions = [
-  { value: "hook", label: "增强开头钩子" },
-  { value: "concise", label: "精简表达" },
-  { value: "conversational", label: "增强口语感" },
-  { value: "rhythm", label: "调整节奏" },
-  { value: "cta", label: "重写结尾 CTA" },
-] as const;
+const versionLabels: Record<ScriptVersion["version_type"], string> = {
+  rough_draft: "原始粗稿",
+  manual_edit: "手动修改",
+  ai_generated: "AI 生成",
+  ai_optimized: "AI 优化",
+  restored: "恢复版本",
+};
 
-type OptimizationType = (typeof optimizationOptions)[number]["value"];
-
-function OptimizationSelect({
+function LibraryFilterMenu<T extends string>({
   value,
+  options,
+  label,
+  showHash = false,
   onChange,
 }: {
-  value: OptimizationType;
-  onChange: (value: OptimizationType) => void;
+  value: T;
+  options: Array<{ value: T; label: string }>;
+  label: string;
+  showHash?: boolean;
+  onChange: (value: T) => void;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-  const selected = optimizationOptions.find((option) => option.value === value) ?? optimizationOptions[0];
+  const selected = options.find((option) => option.value === value) ?? options[0];
 
   useEffect(() => {
     function closeOnPointerDown(event: PointerEvent) {
@@ -79,27 +92,31 @@ function OptimizationSelect({
   }, []);
 
   return (
-    <div className="relative mt-3" ref={root}>
+    <div className="relative min-w-0" ref={root}>
       <button
         type="button"
-        className="field flex items-center justify-between gap-3 text-left text-sm"
+        className="field flex min-w-0 items-center justify-between gap-2 text-left text-[13px]"
+        aria-label={label}
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        <span>{selected.label}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          {showHash ? <Hash className="size-3.5 shrink-0 text-[#91887d]" /> : null}
+          <span className="truncate">{selected.label}</span>
+        </span>
         <ChevronDown
-          className={cn("size-4 shrink-0 text-[#8d8377] transition-transform", open && "rotate-180")}
-          strokeWidth={1.8}
+          className={cn("size-3.5 shrink-0 text-[#81796e] transition-transform", open && "rotate-180")}
         />
       </button>
+
       {open ? (
         <div
           role="listbox"
-          aria-label="选择文案优化方式"
-          className="mt-1.5 rounded-lg border border-[#d9d1c5] bg-[#fffefa] p-1.5 shadow-[0_10px_24px_rgb(50_39_29/12%)]"
+          aria-label={label}
+          className="absolute z-30 mt-1.5 max-h-64 w-full min-w-max overflow-y-auto rounded-lg border border-[#d2c9bc] bg-[#fffefa] p-1.5 shadow-[0_12px_30px_rgb(55_46_35/16%)]"
         >
-          {optimizationOptions.map((option) => {
+          {options.map((option) => {
             const isSelected = option.value === value;
             return (
               <button
@@ -108,10 +125,10 @@ function OptimizationSelect({
                 role="option"
                 aria-selected={isSelected}
                 className={cn(
-                  "flex w-full items-center justify-between rounded-md px-3 py-2.5 text-left text-sm transition-colors",
+                  "flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-[12px] transition-colors",
                   isSelected
-                    ? "bg-[#efe4dc] font-medium text-[#8f432f]"
-                    : "text-[#575149] hover:bg-[#f3eee6]",
+                    ? "bg-[#f3e6df] font-semibold text-[#91452f]"
+                    : "text-[#5f5951] hover:bg-[#f5f0e8]",
                 )}
                 onClick={() => {
                   onChange(option.value);
@@ -119,7 +136,7 @@ function OptimizationSelect({
                 }}
               >
                 <span>{option.label}</span>
-                {isSelected ? <Check className="size-4" strokeWidth={1.8} /> : null}
+                {isSelected ? <Check className="size-3.5" /> : null}
               </button>
             );
           })}
@@ -133,10 +150,12 @@ export function ContentLibrary({
   initialProjects,
   initialFilter = "all",
   guestMode = false,
+  defaultDuration = 60,
 }: {
   initialProjects: ContentProject[];
   initialFilter?: LibraryFilter;
   guestMode?: boolean;
+  defaultDuration?: number;
 }) {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState(initialProjects[0]?.id ?? "");
@@ -230,39 +249,31 @@ export function ContentLibrary({
               aria-label="搜索内容"
             />
           </div>
-          <div className="relative">
-            <select
-              className="field filter-select min-w-0 text-[13px]"
-              value={filter}
-              onChange={(event) => changeFilter(event.target.value as LibraryFilter)}
-              aria-label="筛选内容状态"
-            >
-              <option value="all">全部</option>
-              <option value="idea">新灵感</option>
-              <option value="active">推进中</option>
-              <option value="ready">待发布</option>
-              <option value="published">已完成</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-[#81796e]" />
-          </div>
-          <div className="relative">
-            <Hash className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#91887d]" />
-            <select
-              className="field filter-select min-w-0 pl-8 text-[13px]"
-              value={selectedTag}
-              onChange={(event) => {
-                setSelectedTag(event.target.value);
-                setMobileView("library");
-              }}
-              aria-label="按标签筛选内容"
-            >
-              <option value="all">全部标签</option>
-              {availableTags.map((tag) => (
-                <option key={tag} value={tag}>{tag}</option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-[#81796e]" />
-          </div>
+          <LibraryFilterMenu
+            value={filter}
+            label="筛选内容状态"
+            options={[
+              { value: "all", label: "全部" },
+              { value: "idea", label: "新灵感" },
+              { value: "active", label: "推进中" },
+              { value: "ready", label: "待发布" },
+              { value: "published", label: "已完成" },
+            ]}
+            onChange={changeFilter}
+          />
+          <LibraryFilterMenu
+            value={selectedTag}
+            label="按标签筛选内容"
+            showHash
+            options={[
+              { value: "all", label: "全部标签" },
+              ...availableTags.map((tag) => ({ value: tag, label: tag })),
+            ]}
+            onChange={(nextTag) => {
+              setSelectedTag(nextTag);
+              setMobileView("library");
+            }}
+          />
         </div>
       </div>
 
@@ -312,6 +323,7 @@ export function ContentLibrary({
               project={selected}
               onChanged={refresh}
               onAdvanced={showDraftStep}
+              defaultDuration={defaultDuration}
             />
           </aside>
         ) : null}
@@ -385,22 +397,61 @@ function ProjectPanel({
   project,
   onChanged,
   onAdvanced,
+  defaultDuration,
 }: {
   project: ContentProject;
   onChanged: () => void;
   onAdvanced: (project: ContentProject) => void;
+  defaultDuration: number;
 }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [versions, setVersions] = useState(project.versions);
+  const [currentVersionId, setCurrentVersionId] = useState(project.script?.current_version_id ?? null);
   const currentVersion =
-    project.versions.find((version) => version.id === project.script?.current_version_id) ??
-    project.versions[0] ??
+    versions.find((version) => version.id === currentVersionId) ??
+    versions[0] ??
     null;
+  const aiVersions = useMemo(
+    () => versions
+      .filter((version) => version.version_type === "ai_optimized")
+      .sort((a, b) => a.version_number - b.version_number),
+    [versions],
+  );
+  const [selectedAiVersionId, setSelectedAiVersionId] = useState(
+    () => [...project.versions]
+      .filter((version) => version.version_type === "ai_optimized")
+      .sort((a, b) => b.version_number - a.version_number)[0]?.id ?? null,
+  );
+  const selectedAiVersion =
+    aiVersions.find((version) => version.id === selectedAiVersionId) ??
+    aiVersions.at(-1) ??
+    null;
+  const selectedAiIndex = selectedAiVersion
+    ? aiVersions.findIndex((version) => version.id === selectedAiVersion.id)
+    : -1;
   const [editor, setEditor] = useState(project.script?.autosave_content || currentVersion?.content || "");
   const [draft, setDraft] = useState("");
-  const [optimizeType, setOptimizeType] = useState<OptimizationType>("hook");
+  const [aiVersionMenuOpen, setAiVersionMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [optimizationOptions, setOptimizationOptions] = useState<ScriptOptimizationOptions>(
+    () => createDefaultOptimizationOptions(defaultDuration),
+  );
+  const [tags, setTags] = useState(project.inspiration?.tags ?? []);
+  const [workflowStage, setWorkflowStage] = useState<ContentStage>(project.stage);
   const [loginReason, setLoginReason] = useState("");
   const guestId = project.guestId;
+  const workflowStageIndex = contentStages.findIndex((stage) => stage.value === workflowStage);
+  const previousStage = workflowStageIndex > 0 ? contentStages[workflowStageIndex - 1] : null;
+
+  function canMoveToStage(stage: ContentStage) {
+    if (!project.inspiration) return false;
+    if (stage === "idea") return true;
+    if (stage === "rough_draft") return Boolean(project.topic || project.script);
+    if (stage === "ai_optimized") return Boolean(project.script);
+    if (stage === "ready") return Boolean(project.script && currentVersionId);
+    return Boolean(project.publication);
+  }
 
   async function request(url: string, init: RequestInit) {
     setBusy(true);
@@ -456,11 +507,39 @@ function ProjectPanel({
     if (result) setMessage("粗稿已加入当前内容");
   }
 
+  async function saveTags(nextTags: string[]) {
+    if (!project.inspiration) return;
+    const previousTags = tags;
+    setTags(nextTags);
+
+    if (project.isGuest && guestId) {
+      updateGuestContent(guestId, { tags: nextTags });
+      setMessage("标签已保存在当前设备");
+      onChanged();
+      return;
+    }
+
+    const result = await request("/api/data/inspirations", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: project.inspiration.id,
+        data: { tags: nextTags },
+      }),
+    });
+    if (result) {
+      setMessage("标签已保存");
+    } else {
+      setTags(previousTags);
+    }
+  }
+
   async function saveVersion() {
     if (!project.script) return;
     if (project.isGuest && guestId) {
       updateGuestContent(guestId, { draft: editor.trim(), stage: "ai_optimized" });
-      setMessage("修改已保存在当前设备");
+      setWorkflowStage("ai_optimized");
+      setMessage("粗稿已保存在当前设备");
       onChanged();
       return;
     }
@@ -475,30 +554,39 @@ function ProjectPanel({
         versionType: "manual_edit",
       }),
     });
-    if (result) setMessage("已保存为新版本");
+    if (result) {
+      setVersions((current) => [result.data, ...current]);
+      setCurrentVersionId(result.data.id);
+      setEditor(result.data.content);
+      setWorkflowStage("ai_optimized");
+      setMessage("粗稿已保存");
+    }
   }
 
-  async function optimize() {
+  async function optimize(options: ScriptOptimizationOptions, sourceOverride?: ScriptVersion) {
     if (project.isGuest) {
       setLoginReason("AI 文案优化需要登录，用于保护调用额度并保存不同版本。");
       return;
     }
-    if (!project.script || !currentVersion) return;
-    let sourceVersion: ScriptVersion = currentVersion;
-    if (editor.trim() && editor !== currentVersion.content) {
+    if (!project.script || (!currentVersion && !sourceOverride)) return;
+    let sourceVersion = sourceOverride ?? currentVersion!;
+    if (!sourceOverride && editor.trim() && editor !== currentVersion?.content) {
       const saved = await request("/api/scripts", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action: "append",
           scriptId: project.script.id,
-          sourceVersionId: currentVersion.id,
+          sourceVersionId: currentVersion?.id ?? null,
           content: editor,
           versionType: "manual_edit",
         }),
       });
       if (!saved) return;
       sourceVersion = saved.data;
+      setVersions((current) => [saved.data, ...current]);
+      setCurrentVersionId(saved.data.id);
+      setEditor(saved.data.content);
     }
     const result = await request("/api/ai/scripts/optimize", {
       method: "POST",
@@ -506,33 +594,120 @@ function ProjectPanel({
       body: JSON.stringify({
         scriptId: project.script.id,
         sourceVersionId: sourceVersion.id,
-        optimizationType: optimizeType,
-        instruction: "",
+        applyResult: false,
+        ...options,
       }),
     });
     if (result) {
-      setEditor(result.data.content);
-      setMessage("AI 优化版本已保存，原稿仍然保留");
+      setVersions((current) => [result.data, ...current]);
+      setSelectedAiVersionId(result.data.id);
+      setWorkflowStage("ai_optimized");
+      setMessage("AI 优化稿已生成，原始粗稿未改动");
     }
   }
 
-  async function updateStatus(status: "ready" | "drafting") {
-    if (!project.script) return;
-    if (project.isGuest && guestId) {
-      updateGuestContent(guestId, {
-        draft: editor.trim(),
-        stage: status === "ready" ? "ready" : "ai_optimized",
-      });
-      setMessage(status === "ready" ? "已移入待发布" : "已退回继续打磨");
-      onChanged();
-      return;
-    }
+  async function applyAiVersion() {
+    if (!project.script || !selectedAiVersion || project.isGuest) return;
     const result = await request("/api/scripts", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action: "updateStatus", scriptId: project.script.id, status }),
+      body: JSON.stringify({
+        action: "applyVersion",
+        scriptId: project.script.id,
+        versionId: selectedAiVersion.id,
+      }),
     });
-    if (result) setMessage(status === "ready" ? "已移入待发布" : "已退回继续打磨");
+    if (result) {
+      setCurrentVersionId(selectedAiVersion.id);
+      setEditor(selectedAiVersion.content);
+      setWorkflowStage("ai_optimized");
+      setMessage(`已将 V${selectedAiVersion.version_number} 应用为当前文案，原始粗稿和历史版本仍保留`);
+    }
+  }
+
+  async function copyAiVersion() {
+    if (!selectedAiVersion) return;
+    await navigator.clipboard.writeText(selectedAiVersion.content);
+    setCopied(true);
+    setMessage("AI 优化稿已复制");
+    window.setTimeout(() => setCopied(false), 1500);
+  }
+
+  async function deleteAiVersion() {
+    if (!selectedAiVersion || project.isGuest) return;
+    const deletedIndex = selectedAiIndex;
+    const result = await request(`/api/scripts?versionId=${selectedAiVersion.id}`, { method: "DELETE" });
+    if (!result) return;
+    const remaining = aiVersions.filter((version) => version.id !== selectedAiVersion.id);
+    setVersions((current) => current.filter((version) => version.id !== selectedAiVersion.id));
+    if (result.data) {
+      setVersions((current) => [result.data, ...current]);
+      setCurrentVersionId(result.data.id);
+      setEditor(result.data.content);
+    }
+    setSelectedAiVersionId(remaining[Math.min(deletedIndex, remaining.length - 1)]?.id ?? null);
+    setMessage("当前 AI 版本已删除，其他版本和原始粗稿未受影响");
+  }
+
+  async function changeWorkflowStage(nextStage: ContentStage) {
+    if (!project.inspiration || !canMoveToStage(nextStage) || nextStage === workflowStage) return;
+
+    if (project.isGuest && guestId) {
+      if (nextStage === "published") return;
+      updateGuestContent(guestId, {
+        draft: editor.trim(),
+        stage: nextStage,
+      });
+      setWorkflowStage(nextStage);
+      setMessage(`已切换到“${contentStages.find((stage) => stage.value === nextStage)?.label}”，已有内容仍然保留`);
+      onChanged();
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+    try {
+      if (project.script) {
+        const scriptStatus =
+          nextStage === "ready"
+            ? "ready"
+            : nextStage === "published"
+              ? "published"
+              : "drafting";
+        if (project.script.status !== scriptStatus) {
+          const scriptResponse = await fetch("/api/scripts", {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              action: "updateStatus",
+              scriptId: project.script.id,
+              status: scriptStatus,
+            }),
+          });
+          const scriptResult = await scriptResponse.json();
+          if (!scriptResponse.ok) throw new Error(scriptResult.error ?? "内容状态更新失败");
+        }
+      }
+
+      const response = await fetch("/api/data/inspirations", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: project.inspiration.id,
+          data: { workflow_stage: nextStage },
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "内容阶段更新失败");
+
+      setWorkflowStage(nextStage);
+      setMessage(`已切换到“${contentStages.find((stage) => stage.value === nextStage)?.label}”，已有内容仍然保留`);
+      onChanged();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "内容阶段更新失败");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -540,26 +715,70 @@ function ProjectPanel({
       <div className="border-b border-[#ddd5c9] bg-[#f8f4ed] p-4 sm:p-5">
         <p className="text-[10px] font-semibold tracking-[.16em] text-[#a84f35] uppercase">Current project</p>
         <h2 className="mt-1.5 text-lg font-semibold leading-6 sm:mt-2 sm:text-xl sm:leading-7">{project.title}</h2>
-        <div className="mt-3 grid grid-cols-5 gap-1 sm:mt-5" aria-label={`当前进度 ${project.progress}%`}>
+        <div className="mt-3 grid grid-cols-5 gap-1 sm:mt-5" aria-label={`当前进度 ${(workflowStageIndex + 1) * 20}%`}>
           {contentStages.map((stage, index) => (
-            <div key={stage.value} className="min-w-0">
-              <div className={cn("h-1 rounded-full", index <= project.stageIndex ? "bg-[#b9573a]" : "bg-[#ddd5c9]")} />
-              <p className={cn("mt-2 truncate text-[9px]", index === project.stageIndex ? "font-semibold text-[#8f432f]" : "text-[#92897e]")}>
+            <button
+              key={stage.value}
+              type="button"
+              className="group min-w-0 text-left disabled:cursor-not-allowed"
+              disabled={busy || !canMoveToStage(stage.value)}
+              aria-label={`切换到${stage.label}`}
+              aria-current={index === workflowStageIndex ? "step" : undefined}
+              onClick={() => void changeWorkflowStage(stage.value)}
+            >
+              <span
+                className={cn(
+                  "block h-1 rounded-full transition-colors",
+                  index <= workflowStageIndex ? "bg-[#b9573a]" : "bg-[#ddd5c9]",
+                  canMoveToStage(stage.value) && index !== workflowStageIndex && "group-hover:bg-[#c99a88]",
+                )}
+              />
+              <span className={cn("mt-2 block truncate text-[9px]", index === workflowStageIndex ? "font-semibold text-[#8f432f]" : "text-[#92897e]")}>
                 {stage.label.replace("AI ", "AI")}
-              </p>
-            </div>
+              </span>
+            </button>
           ))}
         </div>
       </div>
 
       <div className="space-y-4 p-4 sm:space-y-5 sm:p-5">
-        {!project.topic && project.inspiration ? (
-          <button type="button" className="btn-primary w-full" disabled={busy} onClick={() => void convert()}>
-            开始推进 <ArrowRight className="size-4" />
-          </button>
+        {project.inspiration ? (
+          <div>
+            {tags.length ? (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full bg-[#f0e9df] px-2.5 py-1 text-[11px] font-medium text-[#796557]"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <ContentTagPicker
+              value={tags}
+              onChange={(nextTags) => void saveTags(nextTags)}
+              collapsedLabel={tags.length ? "编辑标签" : "+ 添加标签"}
+              defaultExpanded={false}
+              disabled={busy}
+            />
+          </div>
         ) : null}
 
-        {project.topic && !project.script ? (
+        {workflowStage === "idea" && project.inspiration ? (
+          project.topic ? (
+            <button type="button" className="btn-primary w-full" disabled={busy} onClick={() => void changeWorkflowStage("rough_draft")}>
+              继续到添加粗稿 <ArrowRight className="size-4" />
+            </button>
+          ) : (
+            <button type="button" className="btn-primary w-full" disabled={busy} onClick={() => void convert()}>
+              开始推进 <ArrowRight className="size-4" />
+            </button>
+          )
+        ) : null}
+
+        {workflowStage === "rough_draft" && project.topic && !project.script ? (
           <form onSubmit={createDraft}>
             <label htmlFor="content-rough-draft" className="mb-2 block text-sm font-semibold">添加粗稿</label>
             <textarea
@@ -576,10 +795,10 @@ function ProjectPanel({
           </form>
         ) : null}
 
-        {project.script && project.stage !== "published" ? (
+        {project.script && workflowStage !== "idea" && workflowStage !== "published" ? (
           <>
             <div>
-              <label htmlFor="content-editor" className="mb-2 block text-sm font-semibold">当前文案</label>
+              <label htmlFor="content-editor" className="mb-2 block text-sm font-semibold">原始粗稿</label>
               <textarea
                 id="content-editor"
                 className="field min-h-48 resize-y leading-7 sm:min-h-64"
@@ -587,22 +806,130 @@ function ProjectPanel({
                 onChange={(event) => setEditor(event.target.value)}
               />
               <div className="mt-2 flex items-center justify-between gap-2">
-                <span className="text-[11px] text-[#8a8277]">{editor.length} 字 · {project.versions.length} 个版本</span>
-                <button type="button" className="btn-secondary min-h-9 py-1 text-xs" disabled={busy} onClick={() => void saveVersion()}>
-                  保存版本
+                <span className="text-[11px] text-[#8a8277]">{editor.length} 字 · 可继续手动编辑</span>
+                <button type="button" className="btn-secondary content-save-draft min-h-9 py-1" disabled={busy} onClick={() => void saveVersion()}>
+                  保存粗稿
                 </button>
               </div>
             </div>
 
-            <div className="rounded-lg border border-[#ead2c8] bg-[#fff8f4] p-4">
-              <p className="flex items-center gap-2 text-sm font-semibold"><Bot className="size-4 text-[#b9573a]" /> AI 文案优化</p>
-              <OptimizationSelect value={optimizeType} onChange={setOptimizeType} />
-              <button type="button" className="btn-primary mt-3 w-full" disabled={busy || !currentVersion} onClick={() => void optimize()}>
-                <Sparkles className="size-4" /> AI 优化
-              </button>
-            </div>
+            {aiVersions.length ? (
+              <section className="rounded-lg border border-[#e1d9ce] bg-[#fbf8f2] p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold">AI 优化稿</h3>
+                  <p className="mt-1 text-[11px] text-[#8a8277]">
+                    每次生成都会保存，切换版本不会修改原始粗稿
+                  </p>
+                </div>
+                <span className="shrink-0 text-[11px] text-[#8a8277]">{aiVersions.length} 个版本</span>
+              </div>
 
-            {project.stage === "ready" && project.script?.current_version_id ? (
+              <div className="relative mt-3">
+                <button
+                  type="button"
+                  className="field flex w-full items-center justify-between gap-3 text-left text-xs"
+                  aria-haspopup="listbox"
+                  aria-expanded={aiVersionMenuOpen}
+                  disabled={!aiVersions.length}
+                  onClick={() => setAiVersionMenuOpen((current) => !current)}
+                >
+                  <span className="truncate">
+                    {selectedAiVersion
+                      ? `V${selectedAiVersion.version_number} · ${versionLabels[selectedAiVersion.version_type]}`
+                      : "暂无 AI 优化版本"}
+                  </span>
+                  <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", aiVersionMenuOpen && "rotate-180")} />
+                </button>
+                {aiVersionMenuOpen ? (
+                  <div
+                    role="listbox"
+                    className="absolute inset-x-0 top-[calc(100%+6px)] z-20 max-h-56 overflow-y-auto rounded-lg border border-[#dcd2c6] bg-[#fffdf9] p-1.5 shadow-lg"
+                  >
+                    {[...aiVersions].reverse().map((version) => (
+                      <button
+                        key={version.id}
+                        type="button"
+                        role="option"
+                        aria-selected={selectedAiVersion?.id === version.id}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-xs",
+                          selectedAiVersion?.id === version.id ? "bg-[#efe2dc] text-[#8f432f]" : "hover:bg-[#f3ede5]",
+                        )}
+                        onClick={() => {
+                          setSelectedAiVersionId(version.id);
+                          setAiVersionMenuOpen(false);
+                        }}
+                      >
+                        <span>V{version.version_number} · AI 优化</span>
+                        <span className="text-[10px] text-[#92897e]">{formatDate(version.created_at)}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary min-h-8 px-3 py-1 text-[11px]"
+                  disabled={busy || selectedAiIndex <= 0}
+                  onClick={() => setSelectedAiVersionId(aiVersions[selectedAiIndex - 1]?.id ?? null)}
+                >
+                  <ChevronLeft className="size-3.5" /> 上一版
+                </button>
+                <span className="min-w-0 truncate text-center text-[10px] text-[#8a8277]">
+                  {selectedAiVersion
+                    ? readOptimizationSummary(
+                        selectedAiVersion.optimization_prompt,
+                        selectedAiVersion.estimated_duration,
+                      )
+                    : "生成后可在这里查看设置摘要"}
+                </span>
+                <button
+                  type="button"
+                  className="btn-secondary min-h-8 px-3 py-1 text-[11px]"
+                  disabled={busy || selectedAiIndex < 0 || selectedAiIndex >= aiVersions.length - 1}
+                  onClick={() => setSelectedAiVersionId(aiVersions[selectedAiIndex + 1]?.id ?? null)}
+                >
+                  下一版 <ChevronRight className="size-3.5" />
+                </button>
+              </div>
+
+              <textarea
+                className="field mt-3 min-h-48 resize-y leading-7 sm:min-h-64"
+                value={selectedAiVersion?.content ?? ""}
+                readOnly
+                placeholder="AI 生成完成后，优化稿会固定显示在这里……"
+                aria-label="AI 优化稿"
+              />
+
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <button type="button" className="btn-primary min-h-9 px-2 py-2 text-xs" disabled={busy || !selectedAiVersion} onClick={() => void applyAiVersion()}>
+                  <Check className="size-3.5" /> 应用为当前文案
+                </button>
+                <button type="button" className="btn-secondary min-h-9 px-2 py-2 text-xs" disabled={busy || !selectedAiVersion} onClick={() => selectedAiVersion && void optimize(optimizationOptions, selectedAiVersion)}>
+                  <Sparkles className="size-3.5" /> 继续优化
+                </button>
+                <button type="button" className="btn-secondary min-h-9 px-2 py-2 text-xs" disabled={!selectedAiVersion} onClick={() => void copyAiVersion()}>
+                  <Copy className="size-3.5" /> {copied ? "已复制" : "复制"}
+                </button>
+                <button type="button" className="btn-ghost min-h-9 px-2 py-2 text-xs text-[#9a4d38]" disabled={busy || !selectedAiVersion} onClick={() => void deleteAiVersion()}>
+                  <Trash2 className="size-3.5" /> 删除当前版本
+                </button>
+              </div>
+              </section>
+            ) : null}
+
+            <ScriptOptimizationPanel
+              defaultDuration={defaultDuration}
+              busy={busy}
+              disabled={!currentVersion}
+              onSubmit={optimize}
+              onOptionsChange={setOptimizationOptions}
+            />
+
+            {workflowStage === "ready" && currentVersionId ? (
               project.isGuest ? (
                 <button
                   type="button"
@@ -613,31 +940,27 @@ function ProjectPanel({
                 </button>
               ) : (
                 <Link
-                  href={`/publications?script=${project.script.id}&version=${project.script.current_version_id}`}
+                  href={`/publications?script=${project.script.id}&version=${currentVersionId}`}
                   className="btn-primary w-full"
                 >
                   标记为已发布 <ArrowRight className="size-4" />
                 </Link>
               )
             ) : (
-              project.stage !== "ready" ? (
+              workflowStage !== "ready" ? (
                 <div className="border-t border-[#e1d9ce] pt-4">
                   <p className="text-[10px] font-semibold tracking-[.14em] text-[#8d8377] uppercase">下一步</p>
-                  <button type="button" className="btn-secondary mt-2 w-full" disabled={busy} onClick={() => void updateStatus("ready")}>
-                    移入待发布 <ArrowRight className="size-4" />
+                  <button type="button" className="btn-secondary content-next-step mt-2 w-full" disabled={busy} onClick={() => void changeWorkflowStage("ready")}>
+                    <span>移入待发布</span>
+                    <ArrowRight className="size-4" />
                   </button>
                 </div>
               ) : null
             )}
-            {project.stage === "ready" ? (
-              <button type="button" className="btn-ghost w-full text-xs" disabled={busy} onClick={() => void updateStatus("drafting")}>
-                退回继续打磨
-              </button>
-            ) : null}
           </>
         ) : null}
 
-        {project.stage === "published" ? (
+        {workflowStage === "published" ? (
           <div className="rounded-lg bg-[#e7eee9] p-4 text-sm text-[#4c6456]">
             <p className="font-semibold">这条内容已发布</p>
             {project.publication ? (
@@ -661,6 +984,17 @@ function ProjectPanel({
               {project.snapshots.length ? `已有 ${project.snapshots.length} 次数据快照，可前往复盘查看表现。` : "还没有数据快照，建议发布后及时记录表现。"}
             </p>
           </div>
+        ) : null}
+
+        {previousStage && canMoveToStage(previousStage.value) ? (
+          <button
+            type="button"
+            className="btn-ghost content-previous-step"
+            disabled={busy}
+            onClick={() => void changeWorkflowStage(previousStage.value)}
+          >
+            返回上一步
+          </button>
         ) : null}
 
         {message ? <p className="text-sm leading-6 text-[#9a4d38]">{message}</p> : null}

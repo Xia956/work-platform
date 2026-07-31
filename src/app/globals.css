@@ -59,6 +59,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
   line-height: 1rem;
 }
 
+.script-optimization-duration-option,
+.script-optimization-goal-option,
+.script-optimization-cta-option {
+  font-size: 12px;
+}
+
+.script-optimization-instruction {
+  font-size: 12px;
+}
+
 .editorial-title {
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
   font-weight: 700;
@@ -93,6 +103,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
   line-height: 1.25rem;
 }
 
+.field.filter-select.filter-select-with-icon {
+  padding-left: 2.15rem;
+}
+
 .field.publication-version-trigger {
   font-size: 14px;
 }
@@ -125,6 +139,36 @@ button.publication-version-option {
 .btn-secondary:hover { border-color: #bfb5a7; background: #f8f4ed; }
 .btn-ghost { border: 1px solid transparent; background: transparent; color: var(--ink-soft); }
 .btn-ghost:hover { background: #eae4da; color: var(--foreground); }
+button.content-next-step {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0;
+}
+button.content-next-step span {
+  grid-column: 2;
+}
+button.content-next-step svg {
+  grid-column: 3;
+  justify-self: start;
+  margin-left: 0.45rem;
+}
+button.content-previous-step {
+  display: flex;
+  width: fit-content;
+  min-height: 32px;
+  margin-right: auto;
+  margin-left: auto;
+  padding: 0.25rem 0.75rem;
+  font-size: 14px;
+  color: #9a9288;
+}
+button.content-previous-step:hover {
+  color: #746d64;
+}
+button.content-save-draft {
+  font-size: 14px;
+  line-height: 20px;
+}
 .btn-danger { border: 1px solid #f3c9c2; background: #fff7f5; color: #b83b28; }
 .btn-primary:active, .btn-secondary:active, .btn-ghost:active { transform: translateY(1px); }
 .btn-primary:disabled, .btn-secondary:disabled { cursor: not-allowed; opacity: .55; }

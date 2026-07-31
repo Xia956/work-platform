@@ -9,15 +9,21 @@ export function ContentTagPicker({
   value,
   onChange,
   className,
+  collapsedLabel = "+ 添加标签",
+  defaultExpanded,
+  disabled = false,
 }: {
   value: string[];
   onChange: (tags: string[]) => void;
   className?: string;
+  collapsedLabel?: string;
+  defaultExpanded?: boolean;
+  disabled?: boolean;
 }) {
   const inputId = useId();
   const panelId = `${inputId}-panel`;
   const [draft, setDraft] = useState("");
-  const [expanded, setExpanded] = useState(value.length > 0);
+  const [expanded, setExpanded] = useState(defaultExpanded ?? value.length > 0);
 
   function addTags(raw: string) {
     const additions = raw.split(/[,，]/);
@@ -47,10 +53,11 @@ export function ContentTagPicker({
           className="content-tag-trigger inline-flex min-h-8 items-center gap-1.5 rounded-md border border-[#d8cfc3] bg-[#fffefa] px-2.5 py-1.5 text-[#736b61] transition hover:border-[#bd8a75] hover:text-[#934b35]"
           aria-expanded={false}
           aria-controls={panelId}
+          disabled={disabled}
           onClick={() => setExpanded(true)}
         >
           <Tag className="size-3.5" strokeWidth={1.8} />
-          <span>+ 添加标签</span>
+          <span>{collapsedLabel}</span>
           {value.length ? (
             <span className="rounded-full bg-[#eadfd5] px-1.5 text-[10px] text-[#7f4938]">
               {value.length}
@@ -75,6 +82,7 @@ export function ContentTagPicker({
           <button
             type="button"
             className="content-tag-collapse inline-flex items-center gap-0.5 text-[#81796e] hover:text-[#934b35]"
+            disabled={disabled}
             onClick={() => setExpanded(false)}
           >
             收起 <ChevronUp className="size-3" />
@@ -94,6 +102,7 @@ export function ContentTagPicker({
                 type="button"
                 className="grid size-4 place-items-center rounded-full hover:bg-[#d9c8ba]"
                 aria-label={`删除标签 ${tag}`}
+                disabled={disabled}
                 onClick={() => removeTag(tag)}
               >
                 <X className="size-3" />
@@ -115,12 +124,12 @@ export function ContentTagPicker({
           }}
           placeholder="输入自定义标签，按回车添加"
           maxLength={120}
-          disabled={value.length >= 12}
+          disabled={disabled || value.length >= 12}
         />
         <button
           type="button"
           className="content-tag-action inline-flex min-h-9 shrink-0 items-center justify-center gap-1 rounded-md border border-[#ded5c9] bg-white px-3 py-2 text-[#5f584f] transition hover:border-[#bfb5a7] hover:bg-[#f8f4ed] disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!draft.trim() || value.length >= 12}
+          disabled={disabled || !draft.trim() || value.length >= 12}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => addTags(draft)}
         >
@@ -137,6 +146,7 @@ export function ContentTagPicker({
                 key={tag}
                 type="button"
                 className="content-tag-suggestion rounded-full border border-[#ddd2c5] bg-white px-2.5 py-1 text-[#6f665c] transition hover:border-[#bd8a75] hover:text-[#934b35]"
+                disabled={disabled}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => onChange(normalizeContentTags([...value, tag]))}
               >

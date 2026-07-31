@@ -28,9 +28,51 @@ describe("validation", () => {
     expect(optimizeSchema.safeParse({
       scriptId: "not-a-uuid",
       sourceVersionId: crypto.randomUUID(),
-      optimizationType: "hook",
+      rewriteLevel: "minimal",
+      targetDuration: 60,
+      goals: ["hook"],
+      ctaType: null,
       instruction: "",
     }).success).toBe(false);
+  });
+
+  it("requires a CTA type only when CTA is selected", () => {
+    const identifiers = {
+      scriptId: crypto.randomUUID(),
+      sourceVersionId: crypto.randomUUID(),
+    };
+    expect(optimizeSchema.safeParse({
+      ...identifiers,
+      rewriteLevel: "natural",
+      targetDuration: 90,
+      goals: ["rhythm", "cta"],
+      ctaType: "comment",
+      instruction: "语气更克制",
+    }).success).toBe(true);
+    expect(optimizeSchema.safeParse({
+      ...identifiers,
+      rewriteLevel: "minimal",
+      targetDuration: null,
+      goals: ["cta"],
+      ctaType: null,
+      instruction: "",
+    }).success).toBe(false);
+    expect(optimizeSchema.safeParse({
+      ...identifiers,
+      rewriteLevel: "minimal",
+      targetDuration: 30,
+      goals: ["concise"],
+      ctaType: null,
+      instruction: "",
+    }).success).toBe(true);
+  });
+
+  it("does not apply AI output to the main script unless explicitly requested", () => {
+    const parsed = optimizeSchema.parse({
+      scriptId: crypto.randomUUID(),
+      sourceVersionId: crypto.randomUUID(),
+    });
+    expect(parsed.applyResult).toBe(false);
   });
 
   it("validates publication links and timestamps", () => {

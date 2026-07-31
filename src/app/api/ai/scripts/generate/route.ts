@@ -4,6 +4,7 @@ import { aiModel, canStartAiRun, runStructured } from "@/lib/ai";
 import { publicAiError, readJson } from "@/lib/api";
 import { generatedScriptSchema } from "@/lib/ai-schemas";
 import { createClient } from "@/lib/supabase/server";
+import { estimateSpokenDuration, naturalSpokenFoundation } from "@/lib/script-ai";
 
 const inputSchema = z.object({
   topicId: z.string().uuid(),
@@ -43,17 +44,25 @@ export async function POST(request: Request) {
     const ai = await runStructured(
       generatedScriptSchema,
       "generated_script",
-      `你是中文短视频口播编导。为创作者写一篇可以直接对镜头表达的口播稿。
+      `${naturalSpokenFoundation}
+
+你要根据选题生成一版可以直接面对镜头说的初稿。因为用户尚未提供完整粗稿，可以组织内容，但不能编造创作者的个人经历、身份、立场、数据或情绪。
 创作者定位：${profile?.positioning || "未填写"}
 目标受众：${profile?.audience || topic.audience || "泛用户"}
+创作者人设与可信信息：${profile?.persona || "未填写；不得自行补充"}
 风格：${profile?.speaking_style || "自然、真诚、具体"}
-目标时长：${parsed.data.targetDuration} 秒。避免空洞套话和虚构数据。`,
+禁用表达：${profile?.banned_phrases?.join("、") || "无"}
+目标时长：${parsed.data.targetDuration} 秒。以自然完整为先，不机械凑字数。
+输出正文、简短生成摘要和预计秒数。正文中不要输出标题、结构标记或写作说明。`,
       `选题：${topic.title}
 切入角度：${topic.angle || "未填写"}
 核心痛点：${topic.pain_point || "未填写"}
 补充要求：${parsed.data.instruction || "无"}`,
     );
-    const result = ai.data;
+    const result = {
+      ...ai.data,
+      estimatedDuration: estimateSpokenDuration(ai.data.content),
+    };
     const { data, error } = await supabase.rpc("create_script_from_ai", {
       p_title: result.title,
       p_topic_id: topic.id,

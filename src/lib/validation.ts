@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  ctaTypeValues,
+  optimizationGoalValues,
+  rewriteLevelValues,
+} from "@/lib/script-ai";
 
 const httpsUrl = z.string().url().refine((value) => new URL(value).protocol === "https:", {
   message: "只支持 HTTPS 链接",
@@ -8,6 +13,7 @@ export const inspirationSchema = z.object({
   title: z.string().trim().min(1, "请输入灵感标题").max(120),
   content: z.string().trim().max(5000).default(""),
   tags: z.array(z.string().trim().min(1).max(24)).max(12).default([]),
+  workflow_stage: z.enum(["idea", "rough_draft", "ai_optimized", "ready", "published"]).optional(),
   status: z.enum(["inbox", "developing", "converted", "archived"]).default("inbox"),
 });
 
@@ -32,8 +38,20 @@ export const roughDraftSchema = z.object({
 export const optimizeSchema = z.object({
   scriptId: z.string().uuid(),
   sourceVersionId: z.string().uuid(),
-  optimizationType: z.enum(["hook", "concise", "conversational", "rhythm", "cta", "custom"]),
+  rewriteLevel: z.enum(rewriteLevelValues).default("minimal"),
+  targetDuration: z.union([z.literal(30), z.literal(60), z.literal(90), z.null()]).default(null),
+  goals: z.array(z.enum(optimizationGoalValues)).max(optimizationGoalValues.length).default([]),
+  ctaType: z.enum(ctaTypeValues).nullable().default(null),
   instruction: z.string().trim().max(1000).default(""),
+  applyResult: z.boolean().default(false),
+}).superRefine((value, context) => {
+  if (value.goals.includes("cta") && !value.ctaType) {
+    context.addIssue({
+      code: "custom",
+      path: ["ctaType"],
+      message: "选择结尾 CTA 后需要指定 CTA 类型",
+    });
+  }
 });
 
 export const benchmarkUrlSchema = z.object({

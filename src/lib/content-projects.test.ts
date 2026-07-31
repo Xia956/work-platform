@@ -33,6 +33,31 @@ describe("buildContentProjects", () => {
     expect(projects[0]).toMatchObject({ stage: "ready", progress: 80 });
   });
 
+  it("honors a reversible workflow stage without removing later content", () => {
+    const projects = buildContentProjects({
+      inspirations: [{
+        id: "i",
+        title: "灵感",
+        content: "",
+        tags: [],
+        workflow_stage: "rough_draft",
+        status: "converted",
+        created_at: "2026-01-01",
+      }],
+      topics: [{ id: "t", title: "选题", angle: null, audience: null, pain_point: null, keywords: [], priority: 3, status: "drafting", inspiration_id: "i", created_at: "2026-01-02" }],
+      scripts: [{ id: "s", title: "文案", topic_id: "t", status: "drafting", target_duration: 60, current_version_id: "v", autosave_content: "", autosaved_at: null, created_at: "2026-01-03" }],
+      versions: [{ id: "v", script_id: "s", parent_version_id: null, version_number: 2, version_type: "ai_optimized", content: "AI 内容", optimization_type: "hook", optimization_prompt: null, change_summary: null, estimated_duration: 60, created_at: "2026-01-04" }],
+      publications: [],
+    });
+
+    expect(projects[0]).toMatchObject({
+      stage: "rough_draft",
+      progress: 40,
+      script: { id: "s" },
+      versions: [{ id: "v" }],
+    });
+  });
+
   it("maps the six demo projects to the requested stages without duplicates", () => {
     const projects = buildContentProjects({
       inspirations: demoInspirations,

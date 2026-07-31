@@ -5,9 +5,10 @@ import { loadRelated, loadRows } from "@/lib/load-data";
 import type { Script, ScriptVersion, Topic } from "@/lib/types";
 
 export default async function ScriptsPage() {
-  const [scripts, topics] = await Promise.all([
+  const [scripts, topics, profiles] = await Promise.all([
     loadRows<Script>("scripts"),
     loadRows<Topic>("topics"),
+    loadRows<{ default_duration: number }>("creator_profiles"),
   ]);
   const versions = await loadRelated<ScriptVersion>(
     "script_versions",
@@ -22,7 +23,12 @@ export default async function ScriptsPage() {
         description="从你的粗稿开始。每一次手动修改和 AI 优化都会成为独立版本，原始表达永远保留。"
       />
       <SetupBanner />
-      <ScriptStudio initialScripts={scripts} initialVersions={versions} topics={topics} />
+      <ScriptStudio
+        initialScripts={scripts}
+        initialVersions={versions}
+        topics={topics}
+        defaultDuration={profiles[0]?.default_duration ?? 60}
+      />
     </>
   );
 }

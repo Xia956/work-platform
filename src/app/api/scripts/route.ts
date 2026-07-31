@@ -23,6 +23,11 @@ const mutationSchema = z.discriminatedUnion("action", [
     scriptId: z.string().uuid(),
     status: z.enum(["drafting", "ready", "published", "archived"]),
   }),
+  z.object({
+    action: z.literal("applyVersion"),
+    scriptId: z.string().uuid(),
+    versionId: z.string().uuid(),
+  }),
 ]);
 
 async function getAuth() {
@@ -88,6 +93,32 @@ export async function PATCH(request: Request) {
       : NextResponse.json({ data });
   }
 
+  if (parsed.data.action === "applyVersion") {
+    const { data: version } = await auth.supabase!
+      .from("script_versions")
+      .select("id, script_id, content")
+      .eq("id", parsed.data.versionId)
+      .eq("script_id", parsed.data.scriptId)
+      .eq("user_id", auth.user!.id)
+      .maybeSingle();
+    if (!version) return NextResponse.json({ error: "找不到指定文案版本" }, { status: 404 });
+
+    const { data, error } = await auth.supabase!
+      .from("scripts")
+      .update({
+        current_version_id: version.id,
+        autosave_content: version.content,
+        autosaved_at: new Date().toISOString(),
+      })
+      .eq("id", parsed.data.scriptId)
+      .eq("user_id", auth.user!.id)
+      .select()
+      .single();
+    return error
+      ? NextResponse.json({ error: databaseError(error.message, "应用版本失败") }, { status: 400 })
+      : NextResponse.json({ data });
+  }
+
   const { data, error } = await auth.supabase!.rpc("append_script_version", {
     p_script_id: parsed.data.scriptId,
     p_parent_version_id: parsed.data.sourceVersionId,
@@ -106,7 +137,54 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   const auth = await getAuth();
   if (auth.response) return auth.response;
-  const id = z.string().uuid().safeParse(new URL(request.url).searchParams.get("id"));
+  const searchParams = new URL(request.url).searchParams;
+  const versionId = z.string().uuid().safeParse(searchParams.get("versionId"));
+  if (versionId.success) {
+    const { data: version } = await auth.supabase!
+      .from("script_versions")
+      .select("id, script_id, version_type, content")
+      .eq("id", versionId.data)
+      .eq("user_id", auth.user!.id)
+      .maybeSingle();
+    if (!version || version.version_type !== "ai_optimized") {
+      return NextResponse.json({ error: "找不到可删除的 AI 版本" }, { status: 404 });
+    }
+
+    const { data: script } = await auth.supabase!
+      .from("scripts")
+      .select("current_version_id")
+      .eq("id", version.script_id)
+      .eq("user_id", auth.user!.id)
+      .maybeSingle();
+    let replacement = null;
+    if (script?.current_version_id === version.id) {
+      const { data, error } = await auth.supabase!.rpc("append_script_version", {
+        p_script_id: version.script_id,
+        p_parent_version_id: version.id,
+        p_version_type: "manual_edit",
+        p_content: version.content,
+        p_optimization_type: null,
+        p_optimization_prompt: null,
+        p_change_summary: "删除 AI 版本前保留当前文案",
+        p_estimated_duration: null,
+      });
+      if (error) {
+        return NextResponse.json({ error: databaseError(error.message, "保留当前文案失败") }, { status: 400 });
+      }
+      replacement = data;
+    }
+
+    const { error } = await auth.supabase!
+      .from("script_versions")
+      .delete()
+      .eq("id", version.id)
+      .eq("user_id", auth.user!.id);
+    return error
+      ? NextResponse.json({ error: databaseError(error.message, "删除版本失败") }, { status: 400 })
+      : NextResponse.json({ ok: true, data: replacement });
+  }
+
+  const id = z.string().uuid().safeParse(searchParams.get("id"));
   if (!id.success) return NextResponse.json({ error: "文案 ID 无效" }, { status: 422 });
   const { error } = await auth.supabase!
     .from("scripts")

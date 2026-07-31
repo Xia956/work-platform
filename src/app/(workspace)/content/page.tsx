@@ -29,11 +29,12 @@ export default async function ContentPage({
     : "all";
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-  const [inspirations, topics, scripts, publications] = await Promise.all([
+  const [inspirations, topics, scripts, publications, profiles] = await Promise.all([
     loadRows<Inspiration>("inspirations"),
     loadRows<Topic>("topics"),
     loadRows<Script>("scripts"),
     loadRows<Publication>("publications", "published_at"),
+    loadRows<{ default_duration: number }>("creator_profiles"),
   ]);
   const [versions, snapshots] = await Promise.all([
     loadRelated<ScriptVersion>("script_versions", "script_id", scripts.map((item) => item.id)),
@@ -61,6 +62,7 @@ export default async function ContentPage({
         initialProjects={projects}
         initialFilter={initialFilter}
         guestMode={!user && supabaseConfigured && !localPreviewBypass}
+        defaultDuration={profiles[0]?.default_duration ?? 60}
       />
     </>
   );

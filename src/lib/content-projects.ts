@@ -32,6 +32,7 @@ export function advanceProjectToDraft(
       ? {
           ...project.inspiration,
           content: inspirationContent ?? project.inspiration.content,
+          workflow_stage: "rough_draft",
           status: "converted",
           updated_at: topic.updated_at ?? topic.created_at,
         }
@@ -45,10 +46,15 @@ function newest<T extends { created_at: string }>(items: T[]) {
 }
 
 function stageFor(
+  inspiration: Inspiration | null,
   script: Script | null,
   versions: ScriptVersion[],
   publication: Publication | null,
 ): { stage: ContentStage; stageIndex: number } {
+  if (inspiration?.workflow_stage) {
+    const stageIndex = contentStages.findIndex((stage) => stage.value === inspiration.workflow_stage);
+    return { stage: inspiration.workflow_stage, stageIndex };
+  }
   if (publication || script?.status === "published") return { stage: "published", stageIndex: 4 };
   if (script?.status === "ready") return { stage: "ready", stageIndex: 3 };
   if (versions.some((version) => ["manual_edit", "ai_optimized"].includes(version.version_type))) {
@@ -88,7 +94,7 @@ function buildProject(
         .filter((snapshot) => snapshot.publication_id === publication.id)
         .sort((a, b) => +new Date(b.recorded_at) - +new Date(a.recorded_at))
     : [];
-  const { stage, stageIndex } = stageFor(script, versions, publication);
+  const { stage, stageIndex } = stageFor(inspiration, script, versions, publication);
   const dates = [
     inspiration?.created_at,
     inspiration?.updated_at,

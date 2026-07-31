@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -13,13 +13,14 @@ import {
   Clock3,
   ExternalLink,
   FileText,
+  Hash,
   Lightbulb,
   Rocket,
   Search,
   Sparkles,
 } from "lucide-react";
-import { contentStages } from "@/lib/content-projects";
-import type { ContentProject, ContentStage, ScriptVersion } from "@/lib/types";
+import { advanceProjectToDraft, contentStages } from "@/lib/content-projects";
+import type { ContentProject, ContentStage, ScriptVersion, Topic } from "@/lib/types";
 import { cn, formatDate } from "@/lib/utils";
 import { LoginRequiredDialog } from "@/components/login-required-dialog";
 import {
@@ -39,6 +40,95 @@ const stageMeta: Record<ContentStage, { label: string; tone: string; icon: typeo
 
 type LibraryFilter = "all" | "active" | ContentStage;
 
+const optimizationOptions = [
+  { value: "hook", label: "增强开头钩子" },
+  { value: "concise", label: "精简表达" },
+  { value: "conversational", label: "增强口语感" },
+  { value: "rhythm", label: "调整节奏" },
+  { value: "cta", label: "重写结尾 CTA" },
+] as const;
+
+type OptimizationType = (typeof optimizationOptions)[number]["value"];
+
+function OptimizationSelect({
+  value,
+  onChange,
+}: {
+  value: OptimizationType;
+  onChange: (value: OptimizationType) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const selected = optimizationOptions.find((option) => option.value === value) ?? optimizationOptions[0];
+
+  useEffect(() => {
+    function closeOnPointerDown(event: PointerEvent) {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOnPointerDown);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnPointerDown);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
+
+  return (
+    <div className="relative mt-3" ref={root}>
+      <button
+        type="button"
+        className="field flex items-center justify-between gap-3 text-left text-sm"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{selected.label}</span>
+        <ChevronDown
+          className={cn("size-4 shrink-0 text-[#8d8377] transition-transform", open && "rotate-180")}
+          strokeWidth={1.8}
+        />
+      </button>
+      {open ? (
+        <div
+          role="listbox"
+          aria-label="选择文案优化方式"
+          className="mt-1.5 rounded-lg border border-[#d9d1c5] bg-[#fffefa] p-1.5 shadow-[0_10px_24px_rgb(50_39_29/12%)]"
+        >
+          {optimizationOptions.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-md px-3 py-2.5 text-left text-sm transition-colors",
+                  isSelected
+                    ? "bg-[#efe4dc] font-medium text-[#8f432f]"
+                    : "text-[#575149] hover:bg-[#f3eee6]",
+                )}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+              >
+                <span>{option.label}</span>
+                {isSelected ? <Check className="size-4" strokeWidth={1.8} /> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ContentLibrary({
   initialProjects,
   initialFilter = "all",
@@ -51,6 +141,7 @@ export function ContentLibrary({
   const router = useRouter();
   const [selectedId, setSelectedId] = useState(initialProjects[0]?.id ?? "");
   const [filter, setFilter] = useState<LibraryFilter>(initialFilter);
+  const [selectedTag, setSelectedTag] = useState("all");
   const [query, setQuery] = useState("");
   const [mobileView, setMobileView] = useState<"library" | "project">("library");
   const [projects, setProjects] = useState(initialProjects);
@@ -66,6 +157,13 @@ export function ContentLibrary({
     };
   }, [guestMode]);
 
+  const availableTags = useMemo(
+    () => [...new Set(
+      projects.flatMap((project) => project.inspiration?.tags ?? []),
+    )].sort((a, b) => a.localeCompare(b, "zh-CN")),
+    [projects],
+  );
+
   const filtered = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     return projects.filter((project) => {
@@ -73,6 +171,9 @@ export function ContentLibrary({
         filter === "all" ||
         project.stage === filter ||
         (filter === "active" && (project.stage === "rough_draft" || project.stage === "ai_optimized"));
+      const matchesTag =
+        selectedTag === "all" ||
+        project.inspiration?.tags.some((tag) => tag === selectedTag);
       const haystack = [
         project.title,
         project.inspiration?.content,
@@ -80,9 +181,9 @@ export function ContentLibrary({
         ...(project.inspiration?.tags ?? []),
         ...(project.topic?.keywords ?? []),
       ].join(" ").toLowerCase();
-      return matchesStage && (!keyword || haystack.includes(keyword));
+      return matchesStage && matchesTag && (!keyword || haystack.includes(keyword));
     });
-  }, [projects, filter, query]);
+  }, [projects, filter, query, selectedTag]);
 
   const selected = filtered.find((project) => project.id === selectedId) ?? filtered[0] ?? null;
 
@@ -100,6 +201,16 @@ export function ContentLibrary({
     router.replace(nextFilter === "all" ? "/content" : `/content?stage=${nextFilter}`, { scroll: false });
   }
 
+  function showDraftStep(nextProject: ContentProject) {
+    setProjects((current) =>
+      current.map((project) => project.id === nextProject.id ? nextProject : project),
+    );
+    setSelectedId(nextProject.id);
+    setFilter("all");
+    setMobileView("project");
+    router.replace("/content", { scroll: false });
+  }
+
   return (
     <>
       {guestMode ? (
@@ -108,8 +219,8 @@ export function ContentLibrary({
         </div>
       ) : null}
       <div className={cn("mb-3 flex flex-col gap-2 sm:mb-5 lg:flex-row lg:items-center lg:justify-between", mobileView === "project" && "hidden xl:flex")}>
-        <div className="grid min-w-0 flex-1 grid-cols-[1fr_112px] gap-2">
-          <div className="relative min-w-0 flex-1 lg:max-w-md">
+        <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 lg:grid-cols-[minmax(0,1fr)_112px_140px]">
+          <div className="relative col-span-2 min-w-0 flex-1 lg:col-span-1 lg:max-w-md">
             <Search className="absolute left-3 top-3.5 size-4 text-[#91887d]" />
             <input
               className="field field-with-icon"
@@ -131,6 +242,24 @@ export function ContentLibrary({
               <option value="active">推进中</option>
               <option value="ready">待发布</option>
               <option value="published">已完成</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-[#81796e]" />
+          </div>
+          <div className="relative">
+            <Hash className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#91887d]" />
+            <select
+              className="field filter-select min-w-0 pl-8 text-[13px]"
+              value={selectedTag}
+              onChange={(event) => {
+                setSelectedTag(event.target.value);
+                setMobileView("library");
+              }}
+              aria-label="按标签筛选内容"
+            >
+              <option value="all">全部标签</option>
+              {availableTags.map((tag) => (
+                <option key={tag} value={tag}>{tag}</option>
+              ))}
             </select>
             <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-[#81796e]" />
           </div>
@@ -182,6 +311,7 @@ export function ContentLibrary({
               key={`${selected.id}-${selected.updatedAt}`}
               project={selected}
               onChanged={refresh}
+              onAdvanced={showDraftStep}
             />
           </aside>
         ) : null}
@@ -206,6 +336,7 @@ function ContentCard({
     !project.versions.some((version) => version.version_type === "ai_optimized")
       ? "文案打磨"
       : meta.label;
+  const tags = project.inspiration?.tags ?? [];
   return (
     <button
       type="button"
@@ -222,12 +353,21 @@ function ContentCard({
         <ChevronRight className="size-4 text-[#aaa196] transition group-hover:translate-x-0.5 group-hover:text-[#b9573a]" />
       </div>
       <h2 className="mt-3 line-clamp-2 text-[16px] font-semibold leading-5 sm:mt-4 sm:text-[17px] sm:leading-6">{project.title}</h2>
-      <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-[#756e64] sm:mt-2 sm:min-h-10">
-        {project.topic?.angle ?? project.inspiration?.content ?? project.script?.autosave_content ?? "打开内容项目继续完善"}
-      </p>
+      {tags.length ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {tags.slice(0, 3).map((tag) => (
+            <span key={tag} className="rounded-full bg-[#f0e9df] px-2 py-1 text-[10px] font-medium text-[#796557]">
+              #{tag}
+            </span>
+          ))}
+          {tags.length > 3 ? (
+            <span className="px-1 py-1 text-[10px] text-[#938b80]">+{tags.length - 3}</span>
+          ) : null}
+        </div>
+      ) : null}
       <div className="mt-3 sm:mt-5">
         <div className="mb-2 flex items-center justify-between text-[11px]">
-          <span className="text-[#827a70]">单条内容进度</span>
+          <span className="text-[#827a70]">内容进度</span>
           <span className="font-semibold text-[#9d5038]">{project.progress}%</span>
         </div>
         <div className="progress-track">
@@ -244,9 +384,11 @@ function ContentCard({
 function ProjectPanel({
   project,
   onChanged,
+  onAdvanced,
 }: {
   project: ContentProject;
   onChanged: () => void;
+  onAdvanced: (project: ContentProject) => void;
 }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -256,8 +398,7 @@ function ProjectPanel({
     null;
   const [editor, setEditor] = useState(project.script?.autosave_content || currentVersion?.content || "");
   const [draft, setDraft] = useState("");
-  const [ideaDetail, setIdeaDetail] = useState(project.inspiration?.content ?? "");
-  const [optimizeType, setOptimizeType] = useState("hook");
+  const [optimizeType, setOptimizeType] = useState<OptimizationType>("hook");
   const [loginReason, setLoginReason] = useState("");
   const guestId = project.guestId;
 
@@ -278,27 +419,20 @@ function ProjectPanel({
   async function convert() {
     if (!project.inspiration) return;
     if (project.isGuest && guestId) {
-      updateGuestContent(guestId, {
-        idea: ideaDetail.trim() || project.inspiration.content,
-        direction: ideaDetail.trim() || project.inspiration.content || project.title,
+      const updated = updateGuestContent(guestId, {
+        direction: project.inspiration.content || project.title,
+        stage: "rough_draft",
       });
-      setMessage("已开始推进，可以继续补充粗稿");
-      onChanged();
+      if (updated) onAdvanced(guestContentToProject(updated));
       return;
     }
-    if (ideaDetail.trim() !== project.inspiration.content) {
-      const updated = await request("/api/data/inspirations", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          id: project.inspiration.id,
-          data: { content: ideaDetail.trim(), status: "developing" },
-        }),
-      });
-      if (!updated) return;
-    }
     const result = await request(`/api/inspirations/${project.inspiration.id}/convert`, { method: "POST" });
-    if (result) setMessage("已开始推进，现在可以继续补充粗稿");
+    if (result) {
+      onAdvanced(advanceProjectToDraft(
+        project,
+        result.data as Topic,
+      ));
+    }
   }
 
   async function createDraft(event: FormEvent) {
@@ -419,24 +553,10 @@ function ProjectPanel({
       </div>
 
       <div className="space-y-4 p-4 sm:space-y-5 sm:p-5">
-        <StageSummary project={project} />
-
         {!project.topic && project.inspiration ? (
-          <div className="rounded-lg border border-[#e4d8cb] bg-[#faf6ef] p-3.5">
-            <label htmlFor="content-idea-detail" className="text-sm font-semibold">准备推进时，再补充一点</label>
-            <p className="mt-1 text-[11px] leading-5 text-[#81796e]">可以写下想表达的方向，也可以先留空，进入下一步后再慢慢完善。</p>
-            <textarea
-              id="content-idea-detail"
-              className="field mt-3 min-h-24 resize-y leading-6"
-              value={ideaDetail}
-              onChange={(event) => setIdeaDetail(event.target.value)}
-              placeholder="这条内容具体想表达什么？"
-              maxLength={5000}
-            />
-            <button type="button" className="btn-primary mt-3 w-full" disabled={busy} onClick={() => void convert()}>
-              开始推进 <ArrowRight className="size-4" />
-            </button>
-          </div>
+          <button type="button" className="btn-primary w-full" disabled={busy} onClick={() => void convert()}>
+            开始推进 <ArrowRight className="size-4" />
+          </button>
         ) : null}
 
         {project.topic && !project.script ? (
@@ -476,15 +596,9 @@ function ProjectPanel({
 
             <div className="rounded-lg border border-[#ead2c8] bg-[#fff8f4] p-4">
               <p className="flex items-center gap-2 text-sm font-semibold"><Bot className="size-4 text-[#b9573a]" /> AI 文案优化</p>
-              <select className="field mt-3" value={optimizeType} onChange={(event) => setOptimizeType(event.target.value)}>
-                <option value="hook">增强开头钩子</option>
-                <option value="concise">精简表达</option>
-                <option value="conversational">增强口语感</option>
-                <option value="rhythm">调整节奏</option>
-                <option value="cta">重写结尾 CTA</option>
-              </select>
+              <OptimizationSelect value={optimizeType} onChange={setOptimizeType} />
               <button type="button" className="btn-primary mt-3 w-full" disabled={busy || !currentVersion} onClick={() => void optimize()}>
-                <Sparkles className="size-4" /> 生成独立优化版本
+                <Sparkles className="size-4" /> AI 优化
               </button>
             </div>
 
@@ -507,9 +621,12 @@ function ProjectPanel({
               )
             ) : (
               project.stage !== "ready" ? (
-                <button type="button" className="btn-primary w-full" disabled={busy} onClick={() => void updateStatus("ready")}>
-                  <Rocket className="size-4" /> 文案已定稿，移入待发布
-                </button>
+                <div className="border-t border-[#e1d9ce] pt-4">
+                  <p className="text-[10px] font-semibold tracking-[.14em] text-[#8d8377] uppercase">下一步</p>
+                  <button type="button" className="btn-secondary mt-2 w-full" disabled={busy} onClick={() => void updateStatus("ready")}>
+                    移入待发布 <ArrowRight className="size-4" />
+                  </button>
+                </div>
               ) : null
             )}
             {project.stage === "ready" ? (
@@ -554,25 +671,6 @@ function ProjectPanel({
         nextPath="/content"
         onClose={() => setLoginReason("")}
       />
-    </div>
-  );
-}
-
-function StageSummary({ project }: { project: ContentProject }) {
-  return (
-    <div className="space-y-3 text-sm">
-      {project.inspiration ? (
-        <div className="rounded-lg bg-[#f3efe7] p-3">
-          <p className="text-[10px] font-semibold tracking-[.12em] text-[#8e8274] uppercase">灵感原点</p>
-          <p className="mt-1 line-clamp-3 leading-6">{project.inspiration.content || project.inspiration.title}</p>
-        </div>
-      ) : null}
-      {project.topic ? (
-        <div>
-          <p className="text-[10px] font-semibold tracking-[.12em] text-[#8e8274] uppercase">选题切口</p>
-          <p className="mt-1 leading-6">{project.topic.angle || "选题已确认，可继续补充粗稿。"}</p>
-        </div>
-      ) : null}
     </div>
   );
 }

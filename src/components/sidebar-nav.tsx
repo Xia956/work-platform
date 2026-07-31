@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 const items = [
   { href: "/dashboard", label: "工作台", icon: Home },
-  { href: "/content", label: "内容", icon: BookOpenText },
+  { href: "/content", label: "内容库", icon: BookOpenText },
   { href: "/benchmarks", label: "对标", icon: Radio },
   { href: "/publications", label: "复盘", icon: BarChart3 },
 ];

@@ -17,6 +17,29 @@ export const contentStages: Array<{ value: ContentStage; label: string }> = [
   { value: "published", label: "已发布" },
 ];
 
+export function advanceProjectToDraft(
+  project: ContentProject,
+  topic: Topic,
+  inspirationContent = project.inspiration?.content,
+): ContentProject {
+  return {
+    ...project,
+    stage: "rough_draft",
+    stageIndex: 1,
+    progress: 40,
+    updatedAt: topic.updated_at ?? topic.created_at,
+    inspiration: project.inspiration
+      ? {
+          ...project.inspiration,
+          content: inspirationContent ?? project.inspiration.content,
+          status: "converted",
+          updated_at: topic.updated_at ?? topic.created_at,
+        }
+      : null,
+    topic,
+  };
+}
+
 function newest<T extends { created_at: string }>(items: T[]) {
   return [...items].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))[0] ?? null;
 }

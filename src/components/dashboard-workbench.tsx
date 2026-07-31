@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, FilePenLine, Lightbulb, Plus, X } from "lucide-react";
+import { ContentTagPicker } from "@/components/content-tag-picker";
 import { cn } from "@/lib/utils";
 import {
   createGuestContent,
@@ -44,7 +45,8 @@ export function DashboardWorkbench({
   const router = useRouter();
   const [mode, setMode] = useState<CreateMode>(null);
   const [idea, setIdea] = useState("");
-  const [contentForm, setContentForm] = useState({ title: "", direction: "", draft: "" });
+  const [ideaTags, setIdeaTags] = useState<string[]>([]);
+  const [contentForm, setContentForm] = useState({ title: "", draft: "", tags: [] as string[] });
   const [contentProgress, setContentProgress] = useState<{ inspirationId?: string; topicId?: string }>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -73,8 +75,9 @@ export function DashboardWorkbench({
   async function saveIdea(event: FormEvent) {
     event.preventDefault();
     if (guestMode) {
-      createGuestIdea(idea);
+      createGuestIdea(idea, ideaTags);
       setIdea("");
+      setIdeaTags([]);
       setVisibleStats(guestStats(readGuestContents()));
       setMessage("灵感已保存在当前设备，可以去内容库开始推进。");
       return;
@@ -89,10 +92,11 @@ export function DashboardWorkbench({
       await postJson("/api/data/inspirations", {
         title: idea.trim(),
         content: "",
-        tags: [],
+        tags: ideaTags,
         status: "inbox",
       });
       setIdea("");
+      setIdeaTags([]);
       setMessage("灵感已记下，可以去内容库开始推进。");
       router.refresh();
     } catch (error) {
@@ -106,7 +110,7 @@ export function DashboardWorkbench({
     event.preventDefault();
     if (guestMode) {
       createGuestContent(contentForm);
-      setContentForm({ title: "", direction: "", draft: "" });
+      setContentForm({ title: "", draft: "", tags: [] });
       setVisibleStats(guestStats(readGuestContents()));
       setMessage("内容和粗稿已保存在当前设备，登录后可以同步到云端。");
       return;
@@ -124,8 +128,8 @@ export function DashboardWorkbench({
       if (!inspirationId) {
         const inspiration = await postJson("/api/data/inspirations", {
           title: contentForm.title,
-          content: contentForm.direction,
-          tags: [],
+          content: "",
+          tags: contentForm.tags,
           status: "inbox",
         });
         inspirationId = inspiration.data.id;
@@ -144,7 +148,7 @@ export function DashboardWorkbench({
         content: contentForm.draft,
         targetDuration: 60,
       });
-      setContentForm({ title: "", direction: "", draft: "" });
+      setContentForm({ title: "", draft: "", tags: [] });
       setContentProgress({});
       setMessage("内容项目已建立，粗稿也保存好了。");
       router.refresh();
@@ -186,7 +190,7 @@ export function DashboardWorkbench({
             <FilePenLine className="size-[18px]" strokeWidth={1.8} />
           </span>
           <p className="mt-4 text-[15px] font-semibold sm:text-lg">新建内容</p>
-          <p className="mt-1 text-[11px] leading-4 text-[#7d756a] sm:text-xs">整理方向，写下具体粗稿</p>
+          <p className="mt-1 text-[11px] leading-4 text-[#7d756a] sm:text-xs">写下标题和具体粗稿</p>
         </button>
       </section>
 
@@ -196,7 +200,7 @@ export function DashboardWorkbench({
             <div>
               <p className="text-sm font-semibold">{mode === "idea" ? "先记下一句话" : "建立一条完整内容"}</p>
               <p className="mt-1 text-[11px] leading-4 text-[#81796e]">
-                {mode === "idea" ? "不用想标题，也不用现在展开。" : "写下标题、表达方向和第一版粗稿。"}
+                {mode === "idea" ? "不用想标题，也不用现在展开。" : "写下标题和第一版粗稿。"}
               </p>
             </div>
             <button
@@ -220,6 +224,7 @@ export function DashboardWorkbench({
                 autoFocus
                 required
               />
+              <ContentTagPicker value={ideaTags} onChange={setIdeaTags} className="mt-3" />
               <div className="mt-3 flex items-center justify-between gap-3">
                 <span className="text-[11px] text-[#91887d]">{idea.length}/120</span>
                 <button className="btn-primary" disabled={busy || !idea.trim()}>
@@ -238,20 +243,16 @@ export function DashboardWorkbench({
                 required
               />
               <textarea
-                className="field min-h-20 resize-y leading-6"
-                value={contentForm.direction}
-                onChange={(event) => setContentForm({ ...contentForm, direction: event.target.value })}
-                placeholder="这条内容具体想表达什么？"
-                maxLength={500}
-                required
-              />
-              <textarea
                 className="field min-h-36 resize-y leading-7"
                 value={contentForm.draft}
                 onChange={(event) => setContentForm({ ...contentForm, draft: event.target.value })}
                 placeholder="先写下第一版粗稿，不用追求完美……"
                 maxLength={20000}
                 required
+              />
+              <ContentTagPicker
+                value={contentForm.tags}
+                onChange={(tags) => setContentForm({ ...contentForm, tags })}
               />
               <button className="btn-primary w-full" disabled={busy || contentForm.draft.trim().length < 10}>
                 <FilePenLine className="size-4" /> {busy ? "创建中…" : "保存内容和粗稿"}

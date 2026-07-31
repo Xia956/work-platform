@@ -33,12 +33,14 @@ export function ProfileMenu({
     <div className="relative" ref={root}>
       <button
         type="button"
-        className={`flex w-full items-center rounded-md border border-[#d9d1c5] bg-[#fbfaf6] text-left transition hover:border-[#bfb5a7] ${compact ? "justify-center p-1.5" : "gap-2.5 px-2.5 py-2"}`}
+        className={`flex items-center text-left transition ${compact ? "size-9 justify-center rounded-full border border-[#d9d1c5] text-[#2f312c] hover:border-[#bfb5a7] hover:bg-[#e8e1d7]" : "w-full gap-2.5 rounded-md border border-[#d9d1c5] bg-[#fbfaf6] px-2.5 py-2 hover:border-[#bfb5a7]"}`}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#2f312c] text-xs font-semibold text-white">
+        <span
+          className={`grid size-8 shrink-0 place-items-center text-xs font-semibold ${compact ? "" : "rounded-full bg-[#2f312c] text-white"}`}
+        >
           {initial || <UserRound className="size-4" />}
         </span>
         {!compact ? (

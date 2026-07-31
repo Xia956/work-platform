@@ -32,6 +32,33 @@ button, input, textarea, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 ::selection { background: #e8c9bb; }
 
+.content-tag-trigger {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1rem;
+}
+
+.content-tag-input {
+  font-size: 13px;
+  line-height: 1.25rem;
+}
+
+.content-tag-action {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25rem;
+}
+
+.content-tag-suggestion {
+  font-size: 11px;
+  line-height: 1rem;
+}
+
+.content-tag-collapse {
+  font-size: 10px;
+  line-height: 1rem;
+}
+
 .editorial-title {
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
   font-weight: 700;

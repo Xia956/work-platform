@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildContentProjects } from "@/lib/content-projects";
+import { advanceProjectToDraft, buildContentProjects } from "@/lib/content-projects";
 import {
   demoInspirations,
   demoScripts,
@@ -53,5 +53,47 @@ describe("buildContentProjects", () => {
       "idea",
       "idea",
     ]);
+  });
+});
+
+describe("advanceProjectToDraft", () => {
+  it("moves the selected inspiration directly to the rough draft step", () => {
+    const project = buildContentProjects({
+      inspirations: [{
+        id: "inspiration-id",
+        title: "灵感",
+        content: "原始方向",
+        tags: [],
+        status: "inbox",
+        created_at: "2026-01-01",
+      }],
+      topics: [],
+      scripts: [],
+      versions: [],
+      publications: [],
+    })[0];
+    const topic = {
+      id: "topic-id",
+      title: "灵感",
+      angle: "补充后的方向",
+      audience: null,
+      pain_point: null,
+      keywords: [],
+      priority: 3,
+      status: "backlog" as const,
+      inspiration_id: "inspiration-id",
+      created_at: "2026-01-02",
+    };
+
+    const advanced = advanceProjectToDraft(project, topic, "补充后的方向");
+
+    expect(advanced.stage).toBe("rough_draft");
+    expect(advanced.stageIndex).toBe(1);
+    expect(advanced.progress).toBe(40);
+    expect(advanced.topic).toEqual(topic);
+    expect(advanced.inspiration).toMatchObject({
+      content: "补充后的方向",
+      status: "converted",
+    });
   });
 });

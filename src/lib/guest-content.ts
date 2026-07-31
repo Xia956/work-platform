@@ -11,6 +11,7 @@ export interface GuestContent {
   idea: string;
   direction: string;
   draft: string;
+  tags?: string[];
   stage: Exclude<ContentStage, "published">;
   createdAt: string;
   updatedAt: string;
@@ -25,6 +26,8 @@ function isGuestContent(value: unknown): value is GuestContent {
     typeof item.idea === "string" &&
     typeof item.direction === "string" &&
     typeof item.draft === "string" &&
+    (item.tags === undefined ||
+      (Array.isArray(item.tags) && item.tags.every((tag) => typeof tag === "string"))) &&
     ["idea", "rough_draft", "ai_optimized", "ready"].includes(item.stage ?? "") &&
     typeof item.createdAt === "string" &&
     typeof item.updatedAt === "string"
@@ -49,7 +52,7 @@ function writeGuestContents(items: GuestContent[]) {
   window.dispatchEvent(new CustomEvent(GUEST_CONTENT_CHANGED_EVENT));
 }
 
-export function createGuestIdea(idea: string) {
+export function createGuestIdea(idea: string, tags: string[] = []) {
   const now = new Date().toISOString();
   const item: GuestContent = {
     id: crypto.randomUUID(),
@@ -57,6 +60,7 @@ export function createGuestIdea(idea: string) {
     idea: idea.trim(),
     direction: "",
     draft: "",
+    tags,
     stage: "idea",
     createdAt: now,
     updatedAt: now,
@@ -67,16 +71,17 @@ export function createGuestIdea(idea: string) {
 
 export function createGuestContent(input: {
   title: string;
-  direction: string;
   draft: string;
+  tags: string[];
 }) {
   const now = new Date().toISOString();
   const item: GuestContent = {
     id: crypto.randomUUID(),
     title: input.title.trim(),
-    idea: input.direction.trim(),
-    direction: input.direction.trim(),
+    idea: "",
+    direction: "",
     draft: input.draft.trim(),
+    tags: input.tags,
     stage: "rough_draft",
     createdAt: now,
     updatedAt: now,
@@ -87,7 +92,7 @@ export function createGuestContent(input: {
 
 export function updateGuestContent(
   id: string,
-  updates: Partial<Pick<GuestContent, "title" | "idea" | "direction" | "draft" | "stage">>,
+  updates: Partial<Pick<GuestContent, "title" | "idea" | "direction" | "draft" | "tags" | "stage">>,
 ) {
   let updated: GuestContent | null = null;
   const items = readGuestContents().map((item) => {
@@ -130,7 +135,7 @@ export function guestContentToProject(item: GuestContent): ContentProject {
       id: inspirationId,
       title: item.title,
       content: item.idea,
-      tags: [],
+      tags: item.tags ?? [],
       status: item.stage === "idea" ? "inbox" : "converted",
       created_at: item.createdAt,
       updated_at: item.updatedAt,

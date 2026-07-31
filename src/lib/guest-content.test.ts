@@ -14,11 +14,12 @@ const base: GuestContent = {
 
 describe("guest content", () => {
   it("maps a local idea to a content project", () => {
-    const project = guestContentToProject(base);
+    const project = guestContentToProject({ ...base, tags: ["女性成长", "MBTI"] });
     expect(project.isGuest).toBe(true);
     expect(project.stage).toBe("idea");
     expect(project.progress).toBe(20);
     expect(project.inspiration?.content).toBe(base.idea);
+    expect(project.inspiration?.tags).toEqual(["女性成长", "MBTI"]);
     expect(project.script).toBeNull();
   });
 

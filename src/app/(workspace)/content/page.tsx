@@ -57,6 +57,7 @@ export default async function ContentPage({
       />
       <SetupBanner />
       <ContentLibrary
+        key={projects.map((project) => `${project.id}:${project.stage}:${project.updatedAt}`).join("|")}
         initialProjects={projects}
         initialFilter={initialFilter}
         guestMode={!user && supabaseConfigured && !localPreviewBypass}

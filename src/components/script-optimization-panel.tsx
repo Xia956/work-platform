@@ -17,6 +17,9 @@ import {
   type RewriteLevel,
   type ScriptOptimizationOptions,
 } from "@/lib/script-ai";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 
 const rewriteDescriptions: Record<RewriteLevel, string> = {
@@ -36,6 +39,10 @@ export function ScriptOptimizationPanel({
   defaultDuration,
   busy,
   disabled,
+  optimizationSource = "primary",
+  aiSourceLabel = "AI 优化稿",
+  aiSourceAvailable = false,
+  onOptimizationSourceChange,
   onSubmit,
   onOptionsChange,
   className,
@@ -43,6 +50,10 @@ export function ScriptOptimizationPanel({
   defaultDuration: number;
   busy: boolean;
   disabled?: boolean;
+  optimizationSource?: "primary" | "ai";
+  aiSourceLabel?: string;
+  aiSourceAvailable?: boolean;
+  onOptimizationSourceChange?: (source: "primary" | "ai") => void;
   onSubmit: (options: ScriptOptimizationOptions) => void | Promise<void>;
   onOptionsChange?: (options: ScriptOptimizationOptions) => void;
   className?: string;
@@ -76,7 +87,7 @@ export function ScriptOptimizationPanel({
   }
 
   return (
-    <div className={cn("rounded-lg border border-[#ead2c8] bg-[#fff8f4]", className)}>
+    <Card tone="ai" className={className}>
       <button
         type="button"
         className="flex w-full items-center justify-between gap-3 p-4 text-left"
@@ -84,25 +95,52 @@ export function ScriptOptimizationPanel({
         onClick={() => setExpanded((current) => !current)}
       >
         <span className="min-w-0">
-          <span className="flex items-center gap-2 text-sm font-semibold">
-            <Bot className="size-4 text-[#b9573a]" />
+          <span className="type-body flex items-center gap-2 font-semibold">
+            <Bot className="size-4 text-brand" />
             AI 文案优化
           </span>
           {!expanded ? (
-            <span className="mt-1 block truncate text-xs text-[#8a756c]">
+            <span className="type-caption mt-1 block truncate text-ai-ink-muted">
               {buildOptimizationSummary(options)}
             </span>
           ) : null}
         </span>
         <ChevronDown
-          className={cn("size-4 shrink-0 text-[#8d746b] transition-transform", expanded && "rotate-180")}
+          className={cn("size-4 shrink-0 text-ai-ink-muted transition-transform", expanded && "rotate-180")}
         />
       </button>
 
       {expanded ? (
-        <div className="space-y-4 border-t border-[#efdcd5] p-4">
+        <div className="space-y-4 border-t border-ai-line-soft p-4">
+          {onOptimizationSourceChange ? (
           <fieldset>
-            <legend className="text-xs font-semibold text-[#5c514b]">改写程度</legend>
+            <legend className="type-label text-ai-ink">本次优化基于</legend>
+            <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="AI 优化来源">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={optimizationSource === "primary"}
+                className="ui-source-option"
+                onClick={() => onOptimizationSourceChange("primary")}
+              >
+                我的文案
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={optimizationSource === "ai"}
+                className="ui-source-option"
+                disabled={!aiSourceAvailable}
+                onClick={() => onOptimizationSourceChange("ai")}
+              >
+                {aiSourceLabel}
+              </button>
+            </div>
+          </fieldset>
+          ) : null}
+
+          <fieldset>
+            <legend className="type-label text-ai-ink">改写程度</legend>
             <div className="mt-2 grid gap-2">
               {rewriteLevelValues.map((value) => (
                 <button
@@ -110,19 +148,14 @@ export function ScriptOptimizationPanel({
                   type="button"
                   role="radio"
                   aria-checked={rewriteLevel === value}
-                  className={cn(
-                    "rounded-md border px-3 py-2.5 text-left transition-colors",
-                    rewriteLevel === value
-                      ? "border-[#c77a62] bg-white shadow-[0_0_0_1px_rgb(185_87_58/8%)]"
-                      : "border-[#e4d8d0] bg-[#fffdfb] hover:border-[#cfa08f]",
-                  )}
+                  className="ui-choice-card"
                   onClick={() => setRewriteLevel(value)}
                 >
-                  <span className="flex items-center justify-between gap-2 text-xs font-semibold text-[#554a44]">
+                  <span className="type-label flex items-center justify-between gap-2 text-ai-ink">
                     {rewriteLevelLabels[value]}
-                    {rewriteLevel === value ? <Check className="size-3.5 text-[#b9573a]" /> : null}
+                    {rewriteLevel === value ? <Check className="size-3.5 text-brand" /> : null}
                   </span>
-                  <span className="mt-1 block text-xs leading-5 text-[#8b7e76]">
+                  <span className="type-caption mt-1 block text-ai-ink-subtle">
                     {rewriteDescriptions[value]}
                   </span>
                 </button>
@@ -131,7 +164,7 @@ export function ScriptOptimizationPanel({
           </fieldset>
 
           <fieldset>
-            <legend className="text-xs font-semibold text-[#5c514b]">目标时长</legend>
+            <legend className="type-label text-ai-ink">目标时长</legend>
             <div className="mt-2 grid grid-cols-4 gap-1.5">
               {durationOptions.map((option) => (
                 <button
@@ -139,12 +172,7 @@ export function ScriptOptimizationPanel({
                   type="button"
                   role="radio"
                   aria-checked={targetDuration === option.value}
-                  className={cn(
-                    "script-optimization-duration-option min-h-9 rounded-md border px-2 py-2 font-semibold transition-colors",
-                    targetDuration === option.value
-                      ? "border-[#c77a62] bg-[#b9573a] text-white"
-                      : "border-[#e2d5cd] bg-white text-[#6e615a] hover:border-[#cfa08f]",
-                  )}
+                  className="ui-segment"
                   onClick={() => setTargetDuration(option.value)}
                 >
                   {option.label}
@@ -154,7 +182,7 @@ export function ScriptOptimizationPanel({
           </fieldset>
 
           <fieldset>
-            <legend className="text-xs font-semibold text-[#5c514b]">本次需要（可多选）</legend>
+            <legend className="type-label text-ai-ink">本次需要（可多选）</legend>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {optimizationGoalValues.map((goal) => {
                 const selected = goals.includes(goal);
@@ -164,12 +192,7 @@ export function ScriptOptimizationPanel({
                     type="button"
                     role="checkbox"
                     aria-checked={selected}
-                    className={cn(
-                      "script-optimization-goal-option inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 py-1.5 font-semibold transition-colors",
-                      selected
-                        ? "border-[#c77a62] bg-[#ead9d1] text-[#804533]"
-                        : "border-[#dfd3cb] bg-white text-[#6f645d] hover:border-[#cfa08f]",
-                    )}
+                    className="ui-choice-chip font-semibold"
                     onClick={() => toggleGoal(goal)}
                   >
                     {selected ? <Check className="size-3" /> : null}
@@ -182,7 +205,7 @@ export function ScriptOptimizationPanel({
 
           {goals.includes("cta") ? (
             <fieldset>
-              <legend className="text-xs font-semibold text-[#5c514b]">CTA 类型</legend>
+              <legend className="type-label text-ai-ink">CTA 类型</legend>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {ctaTypeValues.map((value) => (
                   <button
@@ -190,12 +213,7 @@ export function ScriptOptimizationPanel({
                     type="button"
                     role="radio"
                     aria-checked={ctaType === value}
-                    className={cn(
-                      "script-optimization-cta-option rounded-full border px-2.5 py-1.5 transition-colors",
-                      ctaType === value
-                        ? "border-[#c77a62] bg-[#b9573a] font-medium text-white"
-                        : "border-[#dfd3cb] bg-white text-[#6f645d]",
-                    )}
+                    className="ui-choice-chip ui-choice-chip--strong"
                     onClick={() => setCtaType(value)}
                   >
                     {ctaTypeLabels[value]}
@@ -206,9 +224,10 @@ export function ScriptOptimizationPanel({
           ) : null}
 
           <label className="block">
-            <span className="text-xs font-semibold text-[#5c514b]">补充要求（可选）</span>
-            <textarea
-              className="field script-optimization-instruction mt-2 min-h-20 resize-y leading-5"
+            <span className="type-label text-ai-ink">补充要求（可选）</span>
+            <Textarea
+              size="sm"
+              className="mt-2 min-h-20 resize-y"
               value={instruction}
               onChange={(event) => setInstruction(event.target.value)}
               placeholder="例如：不要太煽情；保留第一段；语气更克制；不要强行升华"
@@ -216,17 +235,17 @@ export function ScriptOptimizationPanel({
             />
           </label>
 
-          <button
-            type="button"
-            className="btn-primary w-full"
+          <Button
+            variant="primary"
+            className="w-full"
             disabled={busy || disabled}
             onClick={() => void onSubmit(options)}
           >
             <Sparkles className="size-4" />
             {busy ? "AI生成中…" : "AI生成"}
-          </button>
+          </Button>
         </div>
       ) : null}
-    </div>
+    </Card>
   );
 }

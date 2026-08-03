@@ -37,7 +37,7 @@ export const roughDraftSchema = z.object({
 
 export const optimizeSchema = z.object({
   scriptId: z.string().uuid(),
-  sourceVersionId: z.string().uuid(),
+  sourceVersionId: z.string().uuid().nullable().default(null),
   rewriteLevel: z.enum(rewriteLevelValues).default("minimal"),
   targetDuration: z.union([z.literal(30), z.literal(60), z.literal(90), z.null()]).default(null),
   goals: z.array(z.enum(optimizationGoalValues)).max(optimizationGoalValues.length).default([]),

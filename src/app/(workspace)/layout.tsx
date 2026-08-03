@@ -40,7 +40,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
           authenticated={authenticated}
         />
       </div>
-      <main className="mobile-safe-bottom min-h-screen px-3 pb-4 pt-[68px] md:ml-60 md:px-8 md:py-10 xl:px-12">
+      <main className="workspace-main mobile-safe-bottom pb-4 pt-[68px] md:ml-60 md:py-10">
         <div className="mx-auto max-w-7xl">{children}</div>
       </main>
       <SidebarNav />

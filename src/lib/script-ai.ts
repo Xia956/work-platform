@@ -17,6 +17,10 @@ export interface ScriptOptimizationOptions {
   instruction: string;
 }
 
+export type OptimizationSource =
+  | { type: "primary" }
+  | { type: "ai"; versionId: string; versionNumber: number };
+
 export function createDefaultOptimizationOptions(defaultDuration: number): ScriptOptimizationOptions {
   return {
     rewriteLevel: "minimal",
@@ -125,14 +129,40 @@ export function buildOptimizationSummary(options: ScriptOptimizationOptions) {
   return `${rewriteLevelLabels[options.rewriteLevel]} · ${duration} · ${goals}`;
 }
 
-export function serializeOptimizationSettings(options: ScriptOptimizationOptions) {
+export function serializeOptimizationSettings(
+  options: ScriptOptimizationOptions,
+  source?: OptimizationSource,
+) {
   return JSON.stringify({
     rewriteLevel: options.rewriteLevel,
     targetDuration: options.targetDuration,
     goals: options.goals,
     ctaType: options.goals.includes("cta") ? options.ctaType ?? "auto" : null,
     instruction: options.instruction.trim(),
+    source: source ?? { type: "primary" },
   });
+}
+
+export function readOptimizationSource(prompt: string | null): OptimizationSource | null {
+  if (!prompt) return null;
+  try {
+    const value = JSON.parse(prompt) as { source?: Partial<OptimizationSource> };
+    if (value.source?.type === "primary") return { type: "primary" };
+    if (
+      value.source?.type === "ai" &&
+      typeof value.source.versionId === "string" &&
+      typeof value.source.versionNumber === "number"
+    ) {
+      return {
+        type: "ai",
+        versionId: value.source.versionId,
+        versionNumber: value.source.versionNumber,
+      };
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 export function readOptimizationSummary(prompt: string | null, fallbackDuration?: number | null) {

@@ -175,11 +175,11 @@ export function DashboardWorkbench({
           onClick={() => open("idea")}
           className="group min-h-32 rounded-[18px] bg-[#a6533b] p-4 text-left text-white shadow-[0_10px_26px_rgb(112_57_41/16%)] transition hover:-translate-y-0.5 sm:min-h-40 sm:p-5"
         >
-          <span className="grid size-9 place-items-center rounded-full bg-white/15">
+          <span className="grid size-9 place-items-center rounded-full bg-white/15 text-ink-inverse">
             <Lightbulb className="size-[18px]" strokeWidth={1.8} />
           </span>
-          <p className="mt-4 text-[15px] font-semibold sm:text-lg">灵感来了</p>
-          <p className="mt-1 text-[11px] leading-4 text-[#f2d8cf] sm:text-xs">速速记下，之后再展开</p>
+          <p className="mt-4 text-[15px] font-semibold text-ink-inverse sm:text-lg">灵感来了</p>
+          <p className="mt-1 text-[11px] leading-4 text-ink-inverse sm:text-xs">速速记下，之后再展开</p>
         </button>
         <button
           type="button"

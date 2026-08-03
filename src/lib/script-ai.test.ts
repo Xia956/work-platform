@@ -6,6 +6,7 @@ import {
   estimateSpokenDuration,
   naturalSpokenFoundation,
   normalizeOptimizationDuration,
+  readOptimizationSource,
   readOptimizationSummary,
   serializeOptimizationSettings,
   type ScriptOptimizationOptions,
@@ -91,6 +92,22 @@ describe("natural spoken script prompts", () => {
       goals: [],
       ctaType: null,
       instruction: "",
+    });
+  });
+
+  it("records whether an AI version came from the primary draft or another AI version", () => {
+    const primary = serializeOptimizationSettings(baseOptions, { type: "primary" });
+    const ai = serializeOptimizationSettings(baseOptions, {
+      type: "ai",
+      versionId: "version-2",
+      versionNumber: 2,
+    });
+
+    expect(readOptimizationSource(primary)).toEqual({ type: "primary" });
+    expect(readOptimizationSource(ai)).toEqual({
+      type: "ai",
+      versionId: "version-2",
+      versionNumber: 2,
     });
   });
 });

@@ -36,6 +36,36 @@ describe("guest content", () => {
     expect(project.versions).toHaveLength(1);
   });
 
+  it("maps stored AI drafts into selectable history versions", () => {
+    const project = guestContentToProject({
+      ...base,
+      draft: "这是原始粗稿。",
+      stage: "ai_optimized",
+      aiVersions: [{
+        id: "ai-test-version",
+        content: "这是更自然的 AI 优化稿。",
+        optimizationPrompt: JSON.stringify({
+          rewriteLevel: "minimal",
+          targetDuration: 60,
+          goals: ["rhythm"],
+          ctaType: null,
+          instruction: "",
+        }),
+        changeSummary: "调整了口播节奏",
+        estimatedDuration: 60,
+        createdAt: "2026-07-30T11:00:00.000Z",
+      }],
+    });
+
+    expect(project.versions).toHaveLength(2);
+    expect(project.versions[1]).toMatchObject({
+      id: "ai-test-version",
+      version_number: 2,
+      version_type: "ai_optimized",
+      content: "这是更自然的 AI 优化稿。",
+    });
+  });
+
   it("counts guest stages for the workbench", () => {
     expect(guestStats([
       base,

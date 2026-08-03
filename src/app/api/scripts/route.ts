@@ -28,6 +28,16 @@ const mutationSchema = z.discriminatedUnion("action", [
     scriptId: z.string().uuid(),
     versionId: z.string().uuid(),
   }),
+  z.object({
+    action: z.literal("savePrimary"),
+    scriptId: z.string().uuid(),
+    content: z.string().trim().min(1).max(20000),
+  }),
+  z.object({
+    action: z.literal("updateAiVersion"),
+    versionId: z.string().uuid(),
+    content: z.string().trim().min(1).max(20000),
+  }),
 ]);
 
 async function getAuth() {
@@ -96,26 +106,42 @@ export async function PATCH(request: Request) {
   if (parsed.data.action === "applyVersion") {
     const { data: version } = await auth.supabase!
       .from("script_versions")
-      .select("id, script_id, content")
+      .select("id, script_id, content, estimated_duration")
       .eq("id", parsed.data.versionId)
       .eq("script_id", parsed.data.scriptId)
       .eq("user_id", auth.user!.id)
       .maybeSingle();
     if (!version) return NextResponse.json({ error: "找不到指定文案版本" }, { status: 404 });
 
-    const { data, error } = await auth.supabase!
-      .from("scripts")
-      .update({
-        current_version_id: version.id,
-        autosave_content: version.content,
-        autosaved_at: new Date().toISOString(),
-      })
-      .eq("id", parsed.data.scriptId)
-      .eq("user_id", auth.user!.id)
-      .select()
-      .single();
+    const { data, error } = await auth.supabase!.rpc("save_script_primary_draft", {
+      p_script_id: parsed.data.scriptId,
+      p_content: version.content,
+      p_estimated_duration: version.estimated_duration,
+    });
     return error
       ? NextResponse.json({ error: databaseError(error.message, "应用版本失败") }, { status: 400 })
+      : NextResponse.json({ data });
+  }
+
+  if (parsed.data.action === "savePrimary") {
+    const { data, error } = await auth.supabase!.rpc("save_script_primary_draft", {
+      p_script_id: parsed.data.scriptId,
+      p_content: parsed.data.content,
+      p_estimated_duration: null,
+    });
+    return error
+      ? NextResponse.json({ error: databaseError(error.message, "保存我的文案失败") }, { status: 400 })
+      : NextResponse.json({ data });
+  }
+
+  if (parsed.data.action === "updateAiVersion") {
+    const { data, error } = await auth.supabase!.rpc("update_ai_script_version", {
+      p_version_id: parsed.data.versionId,
+      p_content: parsed.data.content,
+      p_estimated_duration: null,
+    });
+    return error
+      ? NextResponse.json({ error: databaseError(error.message, "保存 AI 优化稿失败") }, { status: 400 })
       : NextResponse.json({ data });
   }
 
@@ -158,14 +184,9 @@ export async function DELETE(request: Request) {
       .maybeSingle();
     let replacement = null;
     if (script?.current_version_id === version.id) {
-      const { data, error } = await auth.supabase!.rpc("append_script_version", {
+      const { data, error } = await auth.supabase!.rpc("save_script_primary_draft", {
         p_script_id: version.script_id,
-        p_parent_version_id: version.id,
-        p_version_type: "manual_edit",
         p_content: version.content,
-        p_optimization_type: null,
-        p_optimization_prompt: null,
-        p_change_summary: "删除 AI 版本前保留当前文案",
         p_estimated_duration: null,
       });
       if (error) {

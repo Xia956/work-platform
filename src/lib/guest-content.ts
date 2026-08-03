@@ -5,6 +5,15 @@ import type { ContentProject, ContentStage } from "@/lib/types";
 export const GUEST_CONTENT_STORAGE_KEY = "koubotai:guest-content:v1";
 export const GUEST_CONTENT_CHANGED_EVENT = "koubotai:guest-content-changed";
 
+export interface GuestAiVersion {
+  id: string;
+  content: string;
+  optimizationPrompt: string;
+  changeSummary: string;
+  estimatedDuration: number;
+  createdAt: string;
+}
+
 export interface GuestContent {
   id: string;
   title: string;
@@ -12,6 +21,7 @@ export interface GuestContent {
   direction: string;
   draft: string;
   tags?: string[];
+  aiVersions?: GuestAiVersion[];
   stage: Exclude<ContentStage, "published">;
   createdAt: string;
   updatedAt: string;
@@ -28,6 +38,16 @@ function isGuestContent(value: unknown): value is GuestContent {
     typeof item.draft === "string" &&
     (item.tags === undefined ||
       (Array.isArray(item.tags) && item.tags.every((tag) => typeof tag === "string"))) &&
+    (item.aiVersions === undefined ||
+      (Array.isArray(item.aiVersions) && item.aiVersions.every((version) =>
+        version &&
+        typeof version.id === "string" &&
+        typeof version.content === "string" &&
+        typeof version.optimizationPrompt === "string" &&
+        typeof version.changeSummary === "string" &&
+        typeof version.estimatedDuration === "number" &&
+        typeof version.createdAt === "string"
+      ))) &&
     ["idea", "rough_draft", "ai_optimized", "ready"].includes(item.stage ?? "") &&
     typeof item.createdAt === "string" &&
     typeof item.updatedAt === "string"
@@ -92,7 +112,7 @@ export function createGuestContent(input: {
 
 export function updateGuestContent(
   id: string,
-  updates: Partial<Pick<GuestContent, "title" | "idea" | "direction" | "draft" | "tags" | "stage">>,
+  updates: Partial<Pick<GuestContent, "title" | "idea" | "direction" | "draft" | "tags" | "aiVersions" | "stage">>,
 ) {
   let updated: GuestContent | null = null;
   const items = readGuestContents().map((item) => {
@@ -102,6 +122,29 @@ export function updateGuestContent(
   });
   writeGuestContents(items);
   return updated;
+}
+
+export function addGuestAiVersion(id: string, version: Omit<GuestAiVersion, "id" | "createdAt">) {
+  const item = readGuestContents().find((content) => content.id === id);
+  if (!item) return null;
+  const now = new Date().toISOString();
+  return updateGuestContent(id, {
+    stage: "ai_optimized",
+    aiVersions: [
+      ...(item.aiVersions ?? []),
+      { ...version, id: crypto.randomUUID(), createdAt: now },
+    ],
+  });
+}
+
+export function updateGuestAiVersion(id: string, versionId: string, content: string) {
+  const item = readGuestContents().find((guestContent) => guestContent.id === id);
+  if (!item) return null;
+  return updateGuestContent(id, {
+    aiVersions: (item.aiVersions ?? []).map((version) =>
+      version.id === versionId ? { ...version, content } : version
+    ),
+  });
 }
 
 export function clearGuestContents() {
@@ -175,14 +218,26 @@ export function guestContentToProject(item: GuestContent): ContentProject {
           script_id: scriptId,
           parent_version_id: null,
           version_number: 1,
-          version_type: item.stage === "ai_optimized" ? "manual_edit" : "rough_draft",
+          version_type: "rough_draft" as const,
           content: item.draft,
           optimization_type: null,
           optimization_prompt: null,
           change_summary: null,
           estimated_duration: 60,
           created_at: item.updatedAt,
-        }]
+        }, ...(item.aiVersions ?? []).map((version, index) => ({
+          id: version.id,
+          script_id: scriptId,
+          parent_version_id: versionId,
+          version_number: index + 2,
+          version_type: "ai_optimized" as const,
+          content: version.content,
+          optimization_type: "composite:minimal",
+          optimization_prompt: version.optimizationPrompt,
+          change_summary: version.changeSummary,
+          estimated_duration: version.estimatedDuration,
+          created_at: version.createdAt,
+        }))]
       : [],
     publication: null,
     snapshots: [],

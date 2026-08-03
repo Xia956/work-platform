@@ -1,4 +1,4 @@
-import type { Inspiration, Script, ScriptVersion, Topic } from "@/lib/types";
+import type { BenchmarkSource, Inspiration, Script, ScriptVersion, Topic } from "@/lib/types";
 
 const titles = [
   "长大以后才发现，很多关系不是吵散的",
@@ -125,6 +125,44 @@ export const demoVersions: ScriptVersion[] = demoScripts.flatMap((script, index)
   ];
 });
 
+const demoBenchmarkSourceId = "00000000-0000-4000-8400-000000000001";
+
+export const demoBenchmarkSources: BenchmarkSource[] = [{
+  id: demoBenchmarkSourceId,
+  original_url: "https://v.douyin.com/gZbCoVCW4Io/",
+  normalized_url: "https://www.douyin.com/video/7656514231807146353",
+  source_type: "video",
+  parse_status: "parsed",
+  error_message: null,
+  parsed_metadata: {
+    title: "#伤心大圆啵 #张诗婷",
+    description: "#伤心大圆啵 #张诗婷 - 1702409413 于 2026-06-28 发布，公开页面显示已获赞 477.8 万。",
+    authorName: "1702409413",
+    videoId: "7656514231807146353",
+    publishedAt: "2026-06-28",
+    likesText: "477.8万",
+    keywords: ["伤心大圆啵", "张诗婷"],
+  },
+  parsed_at: "2026-08-03T08:01:00.000Z",
+  created_at: "2026-08-03T08:01:00.000Z",
+}];
+
+export const demoBenchmarkVideos = [{
+  id: "00000000-0000-4000-8500-000000000001",
+  source_id: demoBenchmarkSourceId,
+  video_id: "7656514231807146353",
+  title: "#伤心大圆啵 #张诗婷",
+  description: "1702409413 于 2026-06-28 发布，公开页面显示已获赞 477.8 万。",
+  transcript: null,
+  author_name: "1702409413",
+  cover_url: "https://p3-pc-sign.douyinpic.com/image-cut-tos-priv/03dce98313279450000c5aeb78a85c2a~tplv-dy-resize-origshort-autoq-75:330.jpeg?biz_tag=pcweb_cover&from=327834062&lk3s=138a59ce&s=PackSourceEnum_AWEME_DETAIL&sc=cover&se=false&x-expires=2101104000&x-signature=ICbBD%2BZnS4FFLbHRPGp18apM0jo%3D",
+  public_metrics: { likes: 4_778_000, likes_display: "477.8万" },
+  published_at: "2026-06-28T00:00:00.000Z",
+  ai_analysis: null,
+  analysis_depth: null,
+  created_at: "2026-08-03T08:01:00.000Z",
+}];
+
 export const localDemoRows: Record<string, unknown[]> = {
   inspirations: demoInspirations,
   topics: demoTopics,
@@ -132,8 +170,8 @@ export const localDemoRows: Record<string, unknown[]> = {
   script_versions: demoVersions,
   publications: [],
   metric_snapshots: [],
-  benchmark_sources: [],
+  benchmark_sources: demoBenchmarkSources,
   benchmark_accounts: [],
-  benchmark_videos: [],
+  benchmark_videos: demoBenchmarkVideos,
   creator_profiles: [],
 };

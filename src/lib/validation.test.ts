@@ -75,6 +75,14 @@ describe("validation", () => {
     expect(parsed.applyResult).toBe(false);
   });
 
+  it("accepts the current primary draft as an AI optimization source", () => {
+    const parsed = optimizeSchema.parse({
+      scriptId: crypto.randomUUID(),
+      sourceVersionId: null,
+    });
+    expect(parsed.sourceVersionId).toBeNull();
+  });
+
   it("validates publication links and timestamps", () => {
     expect(publicationSchema.safeParse({
       title: "发布记录",

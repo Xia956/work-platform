@@ -122,8 +122,11 @@
 - 背景使用主表面，边框使用默认边框。
 - focus 使用品牌边框与 3px 低透明度品牌色焦点环。
 - textarea 最小高度按内容场景选择 80、128、192px，不随意新增。
+- 工作台速记灵感框使用 `.ui-capture-editor--idea`（128px）；完整内容粗稿框使用 `.ui-capture-editor--content`（192px）。
 - 正文与 AI 版本编辑器统一使用 `.ui-script-editor`：移动端 128px，桌面端 192px。
 - 文本框内的单一轻量操作使用右下角图标按钮；编辑框增加操作安全留白，不再在外部重复显示同一操作。
+- 工作台新建表单的语音输入使用文本框底部居中的圆形轻量图标按钮，不在框外重复显示按钮文字或辅助提示。
+- 语音按钮距文本框底部使用专用 token `--ds-field-action-bottom-offset`（14px），保证圆形按钮与下边框之间有足够留白。
 - 原生 select 仅用于简单筛选；需要品牌化展开层时使用项目内 listbox。
 - checkbox/radio 的卡片态使用 `.ui-choice-card`；胶囊态使用 `.ui-choice-chip`。
 

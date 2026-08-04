@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, FilePenLine, Lightbulb, Plus, X } from "lucide-react";
 import { ContentTagPicker } from "@/components/content-tag-picker";
+import { VoiceInputControl } from "@/components/voice-input-control";
 import { collectContentTagHistory } from "@/lib/content-tags";
 import { cn } from "@/lib/utils";
 import {
@@ -15,6 +16,11 @@ import {
 } from "@/lib/guest-content";
 
 type CreateMode = "idea" | "content" | null;
+
+function appendVoiceTranscript(current: string, transcript: string, maxLength: number) {
+  const separator = current && !/\s$/.test(current) ? "\n" : "";
+  return `${current}${separator}${transcript}`.slice(0, maxLength);
+}
 
 interface DashboardStats {
   ideas: number;
@@ -225,15 +231,23 @@ export function DashboardWorkbench({
 
           {mode === "idea" ? (
             <form onSubmit={saveIdea} className="mt-4">
-              <textarea
-                className="field min-h-24 resize-none text-[15px] leading-6"
-                value={idea}
-                onChange={(event) => setIdea(event.target.value)}
-                maxLength={120}
-                placeholder="刚刚想到……"
-                autoFocus
-                required
-              />
+              <div className="relative">
+                <textarea
+                  className="field ui-capture-editor--idea ui-field--with-action resize-none text-[15px] leading-6"
+                  value={idea}
+                  onChange={(event) => setIdea(event.target.value)}
+                  maxLength={120}
+                  placeholder="刚刚想到……"
+                  autoFocus
+                  required
+                />
+                <VoiceInputControl
+                  onTranscript={(transcript) =>
+                    setIdea((current) => appendVoiceTranscript(current, transcript, 120))
+                  }
+                  disabled={busy}
+                />
+              </div>
               <ContentTagPicker
                 value={ideaTags}
                 onChange={setIdeaTags}
@@ -257,14 +271,25 @@ export function DashboardWorkbench({
                 maxLength={120}
                 required
               />
-              <textarea
-                className="field min-h-36 resize-y leading-7"
-                value={contentForm.draft}
-                onChange={(event) => setContentForm({ ...contentForm, draft: event.target.value })}
-                placeholder="先写下第一版粗稿，不用追求完美……"
-                maxLength={20000}
-                required
-              />
+              <div className="relative">
+                <textarea
+                  className="field ui-capture-editor--content ui-field--with-action resize-y leading-7"
+                  value={contentForm.draft}
+                  onChange={(event) => setContentForm({ ...contentForm, draft: event.target.value })}
+                  placeholder="先写下第一版粗稿，不用追求完美……"
+                  maxLength={20000}
+                  required
+                />
+                <VoiceInputControl
+                  onTranscript={(transcript) =>
+                    setContentForm((current) => ({
+                      ...current,
+                      draft: appendVoiceTranscript(current.draft, transcript, 20000),
+                    }))
+                  }
+                  disabled={busy}
+                />
+              </div>
               <ContentTagPicker
                 value={contentForm.tags}
                 onChange={(tags) => setContentForm({ ...contentForm, tags })}

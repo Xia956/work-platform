@@ -72,6 +72,7 @@
   --ds-control-height: 42px;
   --ds-control-height-sm: 36px;
   --ds-control-height-icon: 32px;
+  --ds-field-action-bottom-offset: 14px;
   --ds-input-height: 46px;
   --ds-page-x-mobile: 12px;
   --ds-page-x-desktop: 32px;
@@ -339,10 +340,47 @@ button, a { -webkit-tap-highlight-color: transparent; }
   min-height: 128px;
 }
 
+.field.ui-capture-editor--idea {
+  min-height: 128px;
+}
+
+.field.ui-capture-editor--content {
+  min-height: 192px;
+}
+
 .field.ui-script-editor--with-action,
 .ui-field.ui-script-editor--with-action {
   padding-right: var(--ds-space-12);
   padding-bottom: var(--ds-space-12);
+}
+
+.field.ui-field--with-action,
+.ui-field.ui-field--with-action {
+  padding-bottom: var(--ds-space-12);
+}
+
+.ui-button.ui-field-action {
+  position: absolute;
+  left: 50%;
+  bottom: var(--ds-field-action-bottom-offset);
+  transform: translateX(-50%);
+  width: var(--ds-control-height-icon);
+  min-height: var(--ds-control-height-icon);
+  border-color: var(--ds-color-line);
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-color-surface-raised);
+  color: var(--ds-color-ink-muted);
+}
+
+.ui-button.ui-field-action:hover {
+  border-color: var(--ds-color-line-strong);
+  background: var(--ds-color-surface-muted);
+  color: var(--ds-color-brand);
+}
+
+.ui-button.ui-field-action[aria-pressed="true"] {
+  background: var(--ds-color-brand-soft);
+  color: var(--ds-color-brand);
 }
 
 .ui-script-copy-button {

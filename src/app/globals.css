@@ -313,8 +313,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
   opacity: 0.56;
 }
 
+.ui-field.field-with-icon,
 .field.field-with-icon {
-  padding-left: 2.6rem;
+  padding-left: var(--ds-space-10);
 }
 
 .field.filter-select {
@@ -584,6 +585,14 @@ button.content-ai-version-action {
   border-radius: inherit;
   background: var(--accent);
   transition: width 500ms ease;
+}
+
+@media (max-width: 639px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([readonly]),
+  textarea:not([readonly]),
+  select:not([disabled]) {
+    font-size: var(--ds-text-card);
+  }
 }
 
 @media (max-width: 767px) {

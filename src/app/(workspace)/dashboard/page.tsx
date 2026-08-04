@@ -1,5 +1,6 @@
 import { DashboardWorkbench } from "@/components/dashboard-workbench";
 import { buildContentProjects } from "@/lib/content-projects";
+import { collectContentTagHistory } from "@/lib/content-tags";
 import { localPreviewBypass, supabaseConfigured } from "@/lib/config";
 import { loadRelated, loadRows } from "@/lib/load-data";
 import { createClient } from "@/lib/supabase/server";
@@ -38,6 +39,9 @@ export default async function DashboardPage() {
     <DashboardWorkbench
       canWrite={Boolean(user) && supabaseConfigured && !localPreviewBypass}
       guestMode={!user && supabaseConfigured && !localPreviewBypass}
+      initialTagHistory={collectContentTagHistory(
+        inspirations.flatMap((inspiration) => inspiration.tags ?? []),
+      )}
       stats={{
         ideas: projects.filter((item) => item.stage === "idea").length,
         active: projects.filter((item) => item.stage === "rough_draft" || item.stage === "ai_optimized").length,

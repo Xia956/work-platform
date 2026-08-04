@@ -89,7 +89,18 @@ export interface Publication {
   video_url: string | null;
   published_at: string;
   notes: string | null;
+  is_demo?: boolean;
+  review?: PublicationReview;
   created_at: string;
+}
+
+export interface PublicationReview {
+  summary: string;
+  wins: string[];
+  issues: string[];
+  hypotheses: string[];
+  nextActions: string[];
+  nextTopics: string[];
 }
 
 export interface MetricSnapshot {
@@ -102,6 +113,7 @@ export interface MetricSnapshot {
   shares: number;
   favorites: number;
   followers_gained: number;
+  bounce_rate: number | null;
   completion_rate: number | null;
   avg_watch_time: number | null;
 }

@@ -11,6 +11,7 @@ const metricSchema = z.object({
   shares: z.number().int().min(0),
   favorites: z.number().int().min(0),
   followers_gained: z.number().int(),
+  bounce_rate: z.number().min(0).max(100).nullable(),
   completion_rate: z.number().min(0).max(100).nullable(),
   avg_watch_time: z.number().min(0).nullable(),
 });

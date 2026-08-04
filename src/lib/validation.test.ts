@@ -89,6 +89,38 @@ describe("validation", () => {
       video_url: "javascript:alert(1)",
       published_at: new Date().toISOString(),
     }).success).toBe(false);
+
+    expect(publicationSchema.safeParse({
+      title: "发布记录",
+      video_url: "复制打开抖音，查看作品 https://v.douyin.com/example/",
+      published_at: new Date().toISOString(),
+    }).data?.video_url).toBe("https://v.douyin.com/example/");
+
+    expect(publicationSchema.safeParse({
+      title: "发布记录",
+      video_url: " https://v.douyin.com/example/ ",
+      published_at: new Date().toISOString(),
+    }).data?.video_url).toBe("https://v.douyin.com/example/");
+
+    const longUrl = `https://www.douyin.com/video/1234567890?${"source=publication-review&".repeat(100)}`;
+    expect(longUrl.length).toBeGreaterThan(2048);
+    expect(publicationSchema.safeParse({
+      title: "发布记录",
+      video_url: longUrl,
+      published_at: new Date().toISOString(),
+    }).success).toBe(true);
+
+    expect(publicationSchema.safeParse({
+      title: "发布记录",
+      video_url: "https://v.douyin.com/a1B2c3/",
+      published_at: new Date().toISOString(),
+    }).success).toBe(true);
+
+    expect(publicationSchema.safeParse({
+      title: "发布记录",
+      video_url: "4.10 复制打开抖音，看看【玖伍陆的作品】同时拥有青春和对青春的感受 # 青春一去不复返我们... https://v.douyin.com/QygLlpR7D7I/ o@d.At vse:/ :2pm 06/18",
+      published_at: new Date().toISOString(),
+    }).data?.video_url).toBe("https://v.douyin.com/QygLlpR7D7I/");
   });
 
   it("prevents protocol-relative login redirects", () => {

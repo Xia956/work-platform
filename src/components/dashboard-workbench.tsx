@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, FilePenLine, Lightbulb, Plus, X } from "lucide-react";
 import { ContentTagPicker } from "@/components/content-tag-picker";
+import { collectContentTagHistory } from "@/lib/content-tags";
 import { cn } from "@/lib/utils";
 import {
   createGuestContent,
@@ -37,10 +38,12 @@ export function DashboardWorkbench({
   stats,
   canWrite,
   guestMode,
+  initialTagHistory,
 }: {
   stats: DashboardStats;
   canWrite: boolean;
   guestMode: boolean;
+  initialTagHistory: string[];
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<CreateMode>(null);
@@ -51,6 +54,7 @@ export function DashboardWorkbench({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [visibleStats, setVisibleStats] = useState(stats);
+  const [tagHistory, setTagHistory] = useState(initialTagHistory);
 
   const statCards = [
     { label: "新灵感", value: visibleStats.ideas, href: "/content?stage=idea" },
@@ -62,7 +66,9 @@ export function DashboardWorkbench({
   useEffect(() => {
     if (!guestMode) return;
     const frame = window.requestAnimationFrame(() => {
-      setVisibleStats(guestStats(readGuestContents()));
+      const contents = readGuestContents();
+      setVisibleStats(guestStats(contents));
+      setTagHistory(collectContentTagHistory(contents.flatMap((item) => item.tags ?? [])));
     });
     return () => window.cancelAnimationFrame(frame);
   }, [guestMode]);
@@ -76,6 +82,7 @@ export function DashboardWorkbench({
     event.preventDefault();
     if (guestMode) {
       createGuestIdea(idea, ideaTags);
+      setTagHistory((current) => collectContentTagHistory([...ideaTags, ...current]));
       setIdea("");
       setIdeaTags([]);
       setVisibleStats(guestStats(readGuestContents()));
@@ -95,6 +102,7 @@ export function DashboardWorkbench({
         tags: ideaTags,
         status: "inbox",
       });
+      setTagHistory((current) => collectContentTagHistory([...ideaTags, ...current]));
       setIdea("");
       setIdeaTags([]);
       setMessage("灵感已记下，可以去内容库开始推进。");
@@ -110,6 +118,7 @@ export function DashboardWorkbench({
     event.preventDefault();
     if (guestMode) {
       createGuestContent(contentForm);
+      setTagHistory((current) => collectContentTagHistory([...contentForm.tags, ...current]));
       setContentForm({ title: "", draft: "", tags: [] });
       setVisibleStats(guestStats(readGuestContents()));
       setMessage("内容和粗稿已保存在当前设备，登录后可以同步到云端。");
@@ -148,6 +157,7 @@ export function DashboardWorkbench({
         content: contentForm.draft,
         targetDuration: 60,
       });
+      setTagHistory((current) => collectContentTagHistory([...contentForm.tags, ...current]));
       setContentForm({ title: "", draft: "", tags: [] });
       setContentProgress({});
       setMessage("内容项目已建立，粗稿也保存好了。");
@@ -224,7 +234,12 @@ export function DashboardWorkbench({
                 autoFocus
                 required
               />
-              <ContentTagPicker value={ideaTags} onChange={setIdeaTags} className="mt-3" />
+              <ContentTagPicker
+                value={ideaTags}
+                onChange={setIdeaTags}
+                className="mt-3"
+                historyTags={tagHistory}
+              />
               <div className="mt-3 flex items-center justify-between gap-3">
                 <span className="text-[11px] text-[#91887d]">{idea.length}/120</span>
                 <button className="btn-primary" disabled={busy || !idea.trim()}>
@@ -253,6 +268,7 @@ export function DashboardWorkbench({
               <ContentTagPicker
                 value={contentForm.tags}
                 onChange={(tags) => setContentForm({ ...contentForm, tags })}
+                historyTags={tagHistory}
               />
               <button className="btn-primary w-full" disabled={busy || contentForm.draft.trim().length < 10}>
                 <FilePenLine className="size-4" /> {busy ? "创建中…" : "保存内容和粗稿"}

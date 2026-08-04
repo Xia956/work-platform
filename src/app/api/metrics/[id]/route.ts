@@ -11,6 +11,7 @@ const metricPatchSchema = z.object({
   shares: z.number().int().min(0).optional(),
   favorites: z.number().int().min(0).optional(),
   followers_gained: z.number().int().optional(),
+  bounce_rate: z.number().min(0).max(100).nullable().optional(),
   completion_rate: z.number().min(0).max(100).nullable().optional(),
   avg_watch_time: z.number().min(0).nullable().optional(),
 }).refine((value) => Object.keys(value).length > 0);

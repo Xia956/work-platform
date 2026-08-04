@@ -49,7 +49,20 @@ export async function POST(request: Request) {
     .in("publication_id", publications.map((item) => item.id))
     .order("recorded_at", { ascending: true })
     .limit(1_000);
-  if (!snapshots?.length) return NextResponse.json({ error: "请先录入至少一组数据快照" }, { status: 422 });
+  const versionIds = publications
+    .map((item) => item.script_version_id)
+    .filter((id): id is string => Boolean(id));
+  const { data: publicationVersions } = versionIds.length
+    ? await supabase
+      .from("script_versions")
+      .select("id, script_id, version_number, version_type, content")
+      .in("id", versionIds)
+    : { data: [] };
+  const reviewInputs = publications.map((publication) => ({
+    publication,
+    publishedCopy: publicationVersions?.find((version) => version.id === publication.script_version_id) ?? null,
+    snapshots: (snapshots ?? []).filter((snapshot) => snapshot.publication_id === publication.id),
+  }));
   if (!(await canStartAiRun(supabase, auth.user.id))) {
     return NextResponse.json({ error: "AI 请求过于频繁，请稍后再试" }, { status: 429 });
   }
@@ -72,10 +85,18 @@ export async function POST(request: Request) {
     const ai = await runStructured(
       reviewAnalysisSchema,
       "content_performance_review",
-      "你是短视频内容数据分析师。只能基于用户录入的发布记录和数据快照做判断。区分事实、推测和下一步实验，不承诺因果关系，不虚构行业基准。",
-      `发布记录：${JSON.stringify(publications)}
-数据快照：${JSON.stringify(snapshots)}
-请给出简洁、可执行的中文复盘。`,
+      `你是短视频内容复盘分析师。严格遵守以下输出标准：
+1. 同时覆盖数据表现与实际发布文案，但同一事实只能出现一次，禁止换句话重复。
+2. summary 只写总判断和最关键的数据缺口，不超过 120 个汉字。
+3. 每个列表最多 3 条；每条只表达一个结论，先给依据，再给判断，删除空泛鼓励和行业套话。
+4. 开头钩子必须结合跳出率判断；结尾必须结合完播率、平均观看时长和互动设计判断。缺少对应指标时，只说明一次“待验证”，不得虚构。
+5. 文案分析只保留钩子、结构节奏、核心观点、结尾互动这四类中真正影响表现的内容。
+6. hypotheses 使用“数据现象 → 文案可能原因 → 如何验证”的格式，只能写相关性假设，不能宣称因果。
+7. nextActions 必须是可执行实验，写清改动变量和观察指标。
+8. 不引用行业平均值，不做没有数据支撑的高低评价。
+只能依据用户录入的数据和文案判断。`,
+      `复盘输入：${JSON.stringify(reviewInputs)}
+请按标准输出精炼、无重复的中文综合复盘。`,
     );
     const result = ai.data;
     if (run) await supabase.from("ai_runs").update({

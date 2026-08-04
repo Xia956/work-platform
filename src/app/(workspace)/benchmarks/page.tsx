@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/page-header";
 import { SetupBanner } from "@/components/setup-banner";
 import { BenchmarksManager, type BenchmarkVideoView } from "@/components/benchmarks-manager";
 import { loadRelated, loadRows } from "@/lib/load-data";
-import { demoBenchmarkSources, demoBenchmarkVideos } from "@/lib/demo-content";
+import { demoBenchmarkAccounts, demoBenchmarkSources, demoBenchmarkVideos } from "@/lib/demo-content";
 import type { BenchmarkAccount, BenchmarkSource } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -25,13 +25,13 @@ export default async function BenchmarksPage() {
           sources.map((source) => source.id),
         ),
       ])
-    : [demoBenchmarkVideos, []];
+    : [demoBenchmarkVideos, demoBenchmarkAccounts];
   return (
     <>
       <PageHeader
         eyebrow="Reference"
         title="对标资料库"
-        description="粘贴完整抖音分享文案或链接，系统会提取短链、识别内容类型，并明确标出仍需补充的信息。"
+        description="把对标视频和对标账号分开沉淀，在两个资料库之间切换，建立更清晰的长期观察体系。"
       />
       <SetupBanner />
       <BenchmarksManager

@@ -59,6 +59,11 @@ auth.users
 1. `202607280001_initial.sql`：表、索引、RLS、基础版本函数。
 2. `202607280002_hardening.sql`：跨表所有权、追加式版本与事务函数加固。
 3. `202607290003_fix_owned_references_trigger.sql`：修正通用触发器对不同表字段的安全读取。
+4. `202607300004_demo_content.sql`：清理早期数据库演示数据。
+5. `202607310005_content_workflow_stage.sql`：补充内容工作流阶段与兼容迁移。
+6. `202607310006_ai_preview_versions.sql`：增加 AI 预览版本相关数据库能力。
+7. `202607310007_mutable_primary_and_ai_versions.sql`：完善主文案及 AI 版本写入函数。
+8. `202608040008_add_metric_bounce_rate.sql`：为发布数据快照增加跳出率。
 
 不要修改已经应用的迁移。后续版本应新增时间戳递增的迁移文件。
 
@@ -68,5 +73,5 @@ auth.users
 - 文案版本号在同一文案内唯一。
 - 同一用户的规范化对标链接保持唯一。
 - 指标计数不得为负数。
-- 完播率限定为 `0–100`。
+- 跳出率与完播率限定为 `0–100`。
 - `script_versions` 不向客户端开放更新和直接删除策略。

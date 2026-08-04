@@ -2,7 +2,11 @@
 
 import { KeyboardEvent, useId, useState } from "react";
 import { ChevronUp, Plus, Tag, X } from "lucide-react";
-import { normalizeContentTags, suggestedContentTags } from "@/lib/content-tags";
+import {
+  collectContentTagHistory,
+  normalizeContentTags,
+  suggestedContentTags,
+} from "@/lib/content-tags";
 import { cn } from "@/lib/utils";
 
 export function ContentTagPicker({
@@ -12,6 +16,7 @@ export function ContentTagPicker({
   collapsedLabel = "+ 添加标签",
   defaultExpanded,
   disabled = false,
+  historyTags = [],
 }: {
   value: string[];
   onChange: (tags: string[]) => void;
@@ -19,6 +24,7 @@ export function ContentTagPicker({
   collapsedLabel?: string;
   defaultExpanded?: boolean;
   disabled?: boolean;
+  historyTags?: string[];
 }) {
   const inputId = useId();
   const panelId = `${inputId}-panel`;
@@ -41,9 +47,30 @@ export function ContentTagPicker({
     if (draft.trim()) addTags(draft);
   }
 
-  const availableSuggestions = suggestedContentTags.filter(
-    (tag) => !value.some((item) => item.toLocaleLowerCase() === tag.toLocaleLowerCase()),
+  const selectedKeys = new Set(value.map((tag) => tag.toLocaleLowerCase()));
+  const availableHistory = collectContentTagHistory(historyTags).filter(
+    (tag) => !selectedKeys.has(tag.toLocaleLowerCase()),
   );
+  const historyKeys = new Set(availableHistory.map((tag) => tag.toLocaleLowerCase()));
+  const availableSuggestions = suggestedContentTags.filter((tag) => {
+    const key = tag.toLocaleLowerCase();
+    return !selectedKeys.has(key) && !historyKeys.has(key);
+  });
+
+  function suggestionChip(tag: string) {
+    return (
+      <button
+        key={tag}
+        type="button"
+        className="content-tag-suggestion rounded-full border border-[#ddd2c5] bg-white px-2.5 py-1 text-[#6f665c] transition hover:border-[#bd8a75] hover:text-[#934b35]"
+        disabled={disabled}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => onChange(normalizeContentTags([...value, tag]))}
+      >
+        + {tag}
+      </button>
+    );
+  }
 
   if (!expanded) {
     return (
@@ -137,22 +164,20 @@ export function ContentTagPicker({
         </button>
       </div>
 
+      {availableHistory.length && value.length < 12 ? (
+        <div className="mt-2.5">
+          <p className="text-[10px] text-[#91887d]">你用过的</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {availableHistory.map(suggestionChip)}
+          </div>
+        </div>
+      ) : null}
+
       {availableSuggestions.length && value.length < 12 ? (
         <div className="mt-2.5">
           <p className="text-[10px] text-[#91887d]">你可以试试</p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {availableSuggestions.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                className="content-tag-suggestion rounded-full border border-[#ddd2c5] bg-white px-2.5 py-1 text-[#6f665c] transition hover:border-[#bd8a75] hover:text-[#934b35]"
-                disabled={disabled}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => onChange(normalizeContentTags([...value, tag]))}
-              >
-                + {tag}
-              </button>
-            ))}
+            {availableSuggestions.map(suggestionChip)}
           </div>
         </div>
       ) : null}

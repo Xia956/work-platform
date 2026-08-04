@@ -6,6 +6,11 @@ supabase/
     202607280001_initial.sql
     202607280002_hardening.sql
     202607290003_fix_owned_references_trigger.sql
+    202607300004_demo_content.sql
+    202607310005_content_workflow_stage.sql
+    202607310006_ai_preview_versions.sql
+    202607310007_mutable_primary_and_ai_versions.sql
+    202608040008_add_metric_bounce_rate.sql
   seed.sql
 ```
 

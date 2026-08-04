@@ -325,6 +325,7 @@ export function ContentLibrary({
             <ProjectPanel
               key={selected.id}
               project={selected}
+              historyTags={availableTags}
               onChanged={refresh}
               onAdvanced={showDraftStep}
               defaultDuration={defaultDuration}
@@ -399,11 +400,13 @@ function ContentCard({
 
 function ProjectPanel({
   project,
+  historyTags,
   onChanged,
   onAdvanced,
   defaultDuration,
 }: {
   project: ContentProject;
+  historyTags: string[];
   onChanged: () => void;
   onAdvanced: (project: ContentProject) => void;
   defaultDuration: number;
@@ -911,6 +914,7 @@ function ProjectPanel({
               <ContentTagPicker
                 value={tags}
                 onChange={(nextTags) => void saveTags(nextTags)}
+                historyTags={historyTags}
                 collapsedLabel={tags.length ? "编辑标签" : "+ 添加标签"}
                 defaultExpanded={false}
                 disabled={busy}

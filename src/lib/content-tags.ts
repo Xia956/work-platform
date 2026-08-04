@@ -9,7 +9,7 @@ export const suggestedContentTags = [
   "生活方式",
 ] as const;
 
-export function normalizeContentTags(values: string[]) {
+export function collectContentTagHistory(values: string[]) {
   const tags: string[] = [];
   const seen = new Set<string>();
 
@@ -19,8 +19,11 @@ export function normalizeContentTags(values: string[]) {
     if (!tag || seen.has(key)) continue;
     seen.add(key);
     tags.push(tag);
-    if (tags.length === 12) break;
   }
 
   return tags;
+}
+
+export function normalizeContentTags(values: string[]) {
+  return collectContentTagHistory(values).slice(0, 12);
 }

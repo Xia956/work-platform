@@ -2,9 +2,20 @@
 
 面向抖音口播创作者的中文网页工作台。支持灵感、选题、粗稿与版本化文案、对标链接解析、AI 拆解、发布记录、数据快照和 AI 复盘。
 
-当前版本：`v0.3.0`
+当前版本：`v0.7.0`
 
 生产环境：[https://work-platform-eight.vercel.app](https://work-platform-eight.vercel.app)
+
+## v0.7.0 更新
+
+- 对标资料库拆分为视频库与账号库，新增独立详情页、搜索和更完整的 AI 拆解展示。
+- 发布链接支持长链接、短链接及包含 URL 的整段抖音分享文案。
+- 发布复盘改为“记录列表 → 单条详情”，适合持续积累大量发布数据。
+- AI 综合复盘同时分析数据表现与实际发布文案，并以跳出率、完播率和观看时长检验钩子与结尾。
+- 数据快照新增跳出率；复盘结论限制长度、减少重复，并要求给出可验证的关联假设。
+- 标签输入、移动端表单和设计系统细节进一步统一。
+
+完整版本记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 访客体验
 
@@ -42,6 +53,10 @@
    - `supabase/migrations/202607280002_hardening.sql`
    - `supabase/migrations/202607290003_fix_owned_references_trigger.sql`
    - `supabase/migrations/202607300004_demo_content.sql`
+   - `supabase/migrations/202607310005_content_workflow_stage.sql`
+   - `supabase/migrations/202607310006_ai_preview_versions.sql`
+   - `supabase/migrations/202607310007_mutable_primary_and_ai_versions.sql`
+   - `supabase/migrations/202608040008_add_metric_bounce_rate.sql`
 
    或使用已连接项目的 Supabase CLI：
 
@@ -91,6 +106,16 @@ npm run build
 4. 重新部署。Vercel 会按标准 Next.js 项目自动构建。
 
 PWA 安装需要 HTTPS；Vercel 生产与预览地址默认满足该条件。
+
+## 版本策略
+
+- 日常修复、样式调整和小幅优化递增补丁版本，例如 `v0.7.1`、`v0.7.2`。
+- 只有形成明确的新阶段或大型功能模块时，才递增次版本。
+- Git 标签、GitHub Release、`package.json` 和 README 应在发布时保持一致。
+
+## 反馈
+
+这是一个公开项目。问题与建议可以通过 [GitHub Issues](https://github.com/Xia956/work-platform/issues) 提交；请勿在 Issue、日志或截图中公开 API Key、访问令牌或用户数据。
 
 ## 目录说明
 

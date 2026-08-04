@@ -1,21 +1,20 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { BarChart3, Bot, CalendarDays, Check, ChevronDown, FileText, Pencil, Trash2, TrendingUp } from "lucide-react";
+import { BarChart3, Bot, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, Pencil, Trash2, TrendingUp } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { calculateDelta, calculateRates } from "@/lib/metrics";
-import type { MetricSnapshot, Publication, Script, ScriptVersion } from "@/lib/types";
+import type { MetricSnapshot, Publication, PublicationReview, Script, ScriptVersion } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 import { LoginRequiredDialog } from "@/components/login-required-dialog";
-
-type Review = {
-  summary: string;
-  wins: string[];
-  issues: string[];
-  hypotheses: string[];
-  nextActions: string[];
-  nextTopics: string[];
-};
+import { FieldHelp, Input } from "@/components/ui/field";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import {
+  getPublicationUrlError,
+  normalizePublicationUrlInput,
+  PUBLICATION_URL_INPUT_MAX_LENGTH,
+} from "@/lib/publication-url";
 
 const versionTypeLabels: Record<ScriptVersion["version_type"], string> = {
   rough_draft: "粗稿",
@@ -52,13 +51,14 @@ export function PublicationsManager({
     null;
   const [publications, setPublications] = useState(initialPublications);
   const [snapshots, setSnapshots] = useState(initialSnapshots);
-  const [selectedId, setSelectedId] = useState(initialPublications[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState("");
   const [showCreate, setShowCreate] = useState(Boolean(requestedScript && requestedVersion));
   const [editingId, setEditingId] = useState("");
   const [message, setMessage] = useState("");
+  const [videoUrlError, setVideoUrlError] = useState("");
   const [busy, setBusy] = useState(false);
   const [versionMenuOpen, setVersionMenuOpen] = useState(false);
-  const [review, setReview] = useState<Review | null>(null);
+  const [review, setReview] = useState<PublicationReview | null>(null);
   const [reviewRange, setReviewRange] = useState({
     startDate: "",
     endDate: "",
@@ -73,11 +73,18 @@ export function PublicationsManager({
   });
   const [metric, setMetric] = useState({
     views: 0, likes: 0, comments: 0, shares: 0, favorites: 0,
-    followers_gained: 0, completion_rate: "", avg_watch_time: "",
+    followers_gained: 0, bounce_rate: "", completion_rate: "", avg_watch_time: "",
   });
   const [loginReason, setLoginReason] = useState("");
 
   const selected = publications.find((item) => item.id === selectedId) ?? null;
+  const publishedVersion = selected
+    ? versions.find((version) => version.id === selected.script_version_id) ?? null
+    : null;
+  const publishedCopyParagraphs = publishedVersion?.content
+    ? formatPublishedCopyParagraphs(publishedVersion.content)
+    : [];
+  const displayedReview = review ?? selected?.review ?? null;
   const selectedSnapshots = useMemo(
     () => snapshots.filter((snapshot) => snapshot.publication_id === selectedId).sort((a, b) => +new Date(b.recorded_at) - +new Date(a.recorded_at)),
     [snapshots, selectedId],
@@ -90,13 +97,17 @@ export function PublicationsManager({
 
   async function createPublication(event: FormEvent) {
     event.preventDefault();
+    const trimmedVideoUrl = form.videoUrl.trim();
+    const nextVideoUrlError = getPublicationUrlError(trimmedVideoUrl);
+    setVideoUrlError(nextVideoUrlError);
+    if (nextVideoUrlError) return;
     setBusy(true);
     setMessage("");
     const data = {
       title: form.title,
       script_id: form.scriptId || null,
       script_version_id: form.versionId || null,
-      video_url: form.videoUrl || null,
+      video_url: trimmedVideoUrl ? normalizePublicationUrlInput(trimmedVideoUrl) : null,
       published_at: new Date(`${form.publishedAt}T12:00:00`).toISOString(),
       notes: form.notes || null,
     };
@@ -127,6 +138,7 @@ export function PublicationsManager({
       publishedAt: new Date(item.published_at).toISOString().slice(0, 10),
       notes: item.notes ?? "",
     });
+    setVideoUrlError("");
     setShowCreate(true);
     setMessage("");
   }
@@ -134,12 +146,32 @@ export function PublicationsManager({
   async function addMetric(event: FormEvent) {
     event.preventDefault();
     if (!selected) return;
+    if (selected.is_demo) {
+      const snapshot: MetricSnapshot = {
+        id: crypto.randomUUID(),
+        publication_id: selected.id,
+        recorded_at: new Date().toISOString(),
+        views: metric.views,
+        likes: metric.likes,
+        comments: metric.comments,
+        shares: metric.shares,
+        favorites: metric.favorites,
+        followers_gained: metric.followers_gained,
+        bounce_rate: metric.bounce_rate === "" ? null : Number(metric.bounce_rate),
+        completion_rate: metric.completion_rate === "" ? null : Number(metric.completion_rate),
+        avg_watch_time: metric.avg_watch_time === "" ? null : Number(metric.avg_watch_time),
+      };
+      setSnapshots((current) => [snapshot, ...current]);
+      setMessage("本地数据快照已保存");
+      return;
+    }
     const response = await fetch(`/api/publications/${selected.id}/metrics`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         recorded_at: new Date().toISOString(),
         ...metric,
+        bounce_rate: metric.bounce_rate === "" ? null : Number(metric.bounce_rate),
         completion_rate: metric.completion_rate === "" ? null : Number(metric.completion_rate),
         avg_watch_time: metric.avg_watch_time === "" ? null : Number(metric.avg_watch_time),
       }),
@@ -177,11 +209,16 @@ export function PublicationsManager({
     if (response.ok) {
       const next = publications.filter((item) => item.id !== id);
       setPublications(next);
-      setSelectedId(next[0]?.id ?? "");
+      setSelectedId("");
     }
   }
 
   async function removeMetric(id: string) {
+    if (selected?.is_demo) {
+      setSnapshots((current) => current.filter((snapshot) => snapshot.id !== id));
+      setMessage("本地数据快照已删除");
+      return;
+    }
     const response = await fetch(`/api/metrics/${id}`, { method: "DELETE" });
     if (response.ok) {
       setSnapshots((current) => current.filter((snapshot) => snapshot.id !== id));
@@ -198,8 +235,8 @@ export function PublicationsManager({
         登录后可以标记发布、记录数据并进行 AI 复盘；访客灵感和草稿仍保留在当前设备。
       </div>
     ) : null}
-    <div className="grid gap-3 sm:gap-6 xl:grid-cols-[320px_1fr]">
-      <aside className={showCreate ? "hidden xl:block" : ""}>
+    <div>
+      <section className={showCreate || selected ? "hidden" : ""}>
         <div className="mb-3 flex gap-2">
           <button type="button" className="btn-secondary flex-1 px-3" disabled={busy} onClick={() => void analyze(7)}><Bot className="size-4" /> 复盘近 7 天</button>
           <button type="button" className="btn-secondary px-3" disabled={busy} onClick={() => void analyze(30)}>30 天</button>
@@ -255,21 +292,38 @@ export function PublicationsManager({
             复盘
           </button>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 xl:block xl:space-y-3 xl:overflow-visible xl:pb-0">
+        <div className="mb-3 flex items-end justify-between gap-4">
+          <div>
+            <p className="type-eyebrow text-brand uppercase">Published records</p>
+            <h2 className="type-section-title mt-1 text-ink">发布记录</h2>
+          </div>
+          <p className="type-caption text-ink-subtle">共 {publications.length} 条</p>
+        </div>
+        <div className="space-y-2">
           {publications.map((item) => {
-            const itemLatest = snapshots.filter((snapshot) => snapshot.publication_id === item.id).sort((a, b) => +new Date(b.recorded_at) - +new Date(a.recorded_at))[0];
+            const itemSnapshots = snapshots
+              .filter((snapshot) => snapshot.publication_id === item.id)
+              .sort((a, b) => +new Date(b.recorded_at) - +new Date(a.recorded_at));
+            const itemLatest = itemSnapshots[0];
             return (
-              <button key={item.id} type="button" onClick={() => { setSelectedId(item.id); setShowCreate(false); }} className={`paper min-w-[210px] rounded-lg p-3 text-left xl:w-full xl:min-w-0 xl:rounded-2xl xl:p-4 ${selectedId === item.id ? "ring-2 ring-[#f46f4c]" : ""}`}>
-                <p className="font-black">{item.title}</p>
-                <div className="mt-2 flex items-center justify-between gap-3 xl:block">
-                  <p className="flex items-center gap-1 text-[10px] text-[#8f867b] xl:text-[11px]"><CalendarDays className="size-3" /> {formatDate(item.published_at)}</p>
-                  <p className="text-xs font-bold text-[#e35f3f] xl:mt-3 xl:text-sm">{itemLatest ? `${itemLatest.views.toLocaleString()} 播放` : "待录数据"}</p>
+              <button key={item.id} type="button" onClick={() => { setSelectedId(item.id); setReview(null); setShowCreate(false); }} className="ui-card flex w-full items-center justify-between gap-4 p-4 text-left transition hover:border-line-strong sm:p-5">
+                <div className="min-w-0">
+                  <p className="type-card-title text-ink">{item.title}</p>
+                  <p className="type-caption mt-2 flex items-center gap-1 text-ink-subtle"><CalendarDays className="size-3" /> {formatDate(item.published_at)}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-4">
+                  <div className="text-right">
+                    <p className="type-label text-brand">{itemLatest ? `${itemLatest.views.toLocaleString()} 播放` : "待录数据"}</p>
+                    <p className="type-caption mt-1 text-ink-subtle">{itemSnapshots.length} 次快照</p>
+                  </div>
+                  <ChevronRight className="size-4 text-ink-subtle" />
                 </div>
               </button>
             );
           })}
         </div>
-      </aside>
+        {review ? <div className="mt-5"><ReviewCard review={review} /></div> : null}
+      </section>
 
       {showCreate ? (
         <form onSubmit={createPublication} className="paper h-fit rounded-lg p-4 sm:rounded-3xl sm:p-7">
@@ -334,7 +388,26 @@ export function PublicationsManager({
               ) : null}
             </div>
             <Field label="视频链接">
-              <input className="field" type="url" value={form.videoUrl} onChange={(event) => setForm({ ...form, videoUrl: event.target.value })} placeholder="https://..." />
+              <Input
+                type="text"
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                maxLength={PUBLICATION_URL_INPUT_MAX_LENGTH}
+                value={form.videoUrl}
+                onChange={(event) => {
+                  const videoUrl = event.target.value;
+                  setForm({ ...form, videoUrl });
+                  setVideoUrlError(getPublicationUrlError(videoUrl));
+                }}
+                placeholder="粘贴 URL 或抖音整段分享文案"
+                aria-invalid={Boolean(videoUrlError)}
+                aria-describedby="video-url-help"
+              />
+              <FieldHelp id="video-url-help" className={`mt-2 ${videoUrlError ? "text-danger" : ""}`} aria-live="polite">
+                {videoUrlError || "支持长链接、短链接和包含 URL 的整段分享文案，保存时会自动提取链接。"}
+              </FieldHelp>
             </Field>
             <label className="block sm:col-span-2">
               <span className="mb-2 block text-xs font-bold">发布备注</span>
@@ -351,6 +424,9 @@ export function PublicationsManager({
         </form>
       ) : selected ? (
         <section className="space-y-3 sm:space-y-5">
+          <button type="button" className="btn-ghost" onClick={() => { setSelectedId(""); setReview(null); setMessage(""); }}>
+            <ChevronLeft className="size-4" />返回复盘列表
+          </button>
           <div className="paper rounded-lg p-4 sm:rounded-3xl sm:p-7">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -358,21 +434,21 @@ export function PublicationsManager({
                 <h2 className="mt-1 text-xl font-black sm:text-2xl">{selected.title}</h2>
                 <p className="mt-1 text-xs text-[#7c746a] sm:mt-2 sm:text-sm">{formatDate(selected.published_at)}</p>
               </div>
-              <div className="flex gap-2">
+              {selected.is_demo ? <Badge tone="warning">本地预览</Badge> : <div className="flex gap-2">
                 <button type="button" className="btn-secondary min-h-9 px-2.5 text-xs sm:min-h-[42px] sm:px-3 sm:text-sm" onClick={() => startEdit(selected)}><Pencil className="size-4" /> 编辑</button>
                 <button type="button" className="btn-danger" aria-label="删除发布记录" onClick={() => void remove(selected.id)}><Trash2 className="size-4" /></button>
-              </div>
+              </div>}
             </div>
             <div className="mt-4 grid grid-cols-3 gap-2 sm:mt-6 sm:gap-3">
               <Stat
                 label="播放"
-                value={latest?.views ?? 0}
+                value={latest?.views ?? "—"}
                 detail={latest ? calculateDelta(latest.views, previous?.views) : null}
               />
               <Stat label="互动率" value={rates ? `${rates.engagementRate.toFixed(2)}%` : "—"} />
               <Stat label="收藏率" value={rates ? `${rates.favoriteRate.toFixed(2)}%` : "—"} />
             </div>
-            <button type="button" className="btn-secondary mt-3 w-full sm:mt-5 sm:w-auto" disabled={busy || !latest} onClick={() => void analyze(7, selected.id)}>
+            <button type="button" className="btn-secondary mt-3 w-full sm:mt-5 sm:w-auto" disabled={busy || (!latest && !publishedVersion?.content) || selected.is_demo} onClick={() => void analyze(7, selected.id)}>
               <Bot className="size-4" /> AI 复盘这条视频
             </button>
           </div>
@@ -393,6 +469,9 @@ export function PublicationsManager({
               ))}
               <Field label="完播率 %">
                 <input className="field" type="number" min="0" max="100" step="0.01" value={metric.completion_rate} onChange={(event) => setMetric({ ...metric, completion_rate: event.target.value })} />
+              </Field>
+              <Field label="跳出率 %">
+                <input className="field" type="number" min="0" max="100" step="0.01" value={metric.bounce_rate} onChange={(event) => setMetric({ ...metric, bounce_rate: event.target.value })} />
               </Field>
               <Field label="平均观看秒数">
                 <input className="field" type="number" min="0" step="0.1" value={metric.avg_watch_time} onChange={(event) => setMetric({ ...metric, avg_watch_time: event.target.value })} />
@@ -425,9 +504,38 @@ export function PublicationsManager({
               </div>
             ) : null}
           </form>
-          {review ? <ReviewCard review={review} /> : null}
+          {displayedReview ? <ReviewCard review={displayedReview} /> : null}
+          <section className="py-6">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="type-eyebrow text-brand uppercase">Published script</p>
+                <h3 className="type-section-title mt-1 flex items-center gap-2 text-ink">
+                  <FileText className="size-5 text-brand" />实际发布文案
+                </h3>
+              </div>
+              {publishedVersion ? (
+                <p className="type-caption shrink-0 text-ink-subtle">
+                  第 {publishedVersion.version_number} 版
+                  {publishedVersion.estimated_duration ? ` · 约 ${publishedVersion.estimated_duration} 秒` : ""}
+                </p>
+              ) : null}
+            </div>
+            {publishedCopyParagraphs.length ? (
+              <div className="mt-5 max-w-3xl space-y-4 border-l-2 border-brand-soft pl-4 sm:pl-5">
+                {publishedCopyParagraphs.map((paragraph, index) => (
+                  <p key={`${index}-${paragraph.slice(0, 16)}`} className="type-body text-ink-muted">
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <p className="type-body-sm mt-5 border-l-2 border-brand-soft pl-4 text-ink-muted">
+                尚未找到实际发布文案。请前往内容库补充文案，并在发布信息中关联实际使用版本。
+              </p>
+            )}
+          </section>
         </section>
-      ) : (
+      ) : publications.length ? null : (
         <EmptyState title="还没有发布记录" description="请从内容库中的待发布内容进入，确认实际使用版本和发布时间。" />
       )}
     </div>
@@ -443,6 +551,17 @@ export function PublicationsManager({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="block"><span className="mb-2 block text-xs font-bold">{label}</span>{children}</label>;
+}
+
+function formatPublishedCopyParagraphs(content: string) {
+  const sentences = content.trim().split(/(?<=[。！？!?])\s*/u).filter(Boolean);
+  if (sentences.length < 2) return content.trim() ? [content.trim()] : [];
+
+  const paragraphs: string[] = [];
+  for (let index = 0; index < sentences.length; index += 2) {
+    paragraphs.push(sentences.slice(index, index + 2).join(""));
+  }
+  return paragraphs;
 }
 
 function Stat({
@@ -463,21 +582,22 @@ function Stat({
   );
 }
 
-function ReviewCard({ review }: { review: Review }) {
+function ReviewCard({ review }: { review: PublicationReview }) {
   return (
-    <article className="rounded-3xl bg-[#211f1b] p-5 text-white sm:p-7">
-      <div className="flex items-center gap-2 text-[#ff9b80]"><Bot className="size-5" /><h3 className="font-black">AI 数据复盘</h3></div>
-      <p className="mt-4 leading-7 text-white/80">{review.summary}</p>
-      <div className="mt-6 grid gap-5 sm:grid-cols-2">
-        <ReviewList title="做得好的" items={review.wins} />
+    <Card tone="ai" className="p-4 sm:p-5">
+      <div className="flex items-center gap-2 text-brand"><Bot className="size-5" /><h3 className="type-card-title">AI 综合复盘</h3></div>
+      <p className="type-body mt-3 text-ai-ink">{review.summary}</p>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <ReviewList title="表现与文案亮点" items={review.wins} />
         <ReviewList title="需要关注" items={review.issues} />
+        <ReviewList title="数据与文案关联假设" items={review.hypotheses} />
         <ReviewList title="下一步动作" items={review.nextActions} />
         <ReviewList title="后续选题" items={review.nextTopics} />
       </div>
-    </article>
+    </Card>
   );
 }
 
 function ReviewList({ title, items }: { title: string; items: string[] }) {
-  return <div><p className="text-xs font-black text-[#ff9b80]">{title}</p><ul className="mt-2 space-y-2 text-sm leading-6 text-white/70">{items.map((item) => <li key={item}>• {item}</li>)}</ul></div>;
+  return <div><p className="type-label text-ai-ink-muted">{title}</p><ul className="type-body-sm mt-2 space-y-2 text-ai-ink">{items.map((item) => <li key={item}>• {item}</li>)}</ul></div>;
 }

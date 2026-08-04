@@ -1,20 +1,25 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import Link from "next/link";
+import { FormEvent, useMemo, useState } from "react";
 import {
   AlertCircle,
-  Bot,
+  ArrowRight,
   CheckCircle2,
-  ExternalLink,
+  FileText,
   Link2,
   LoaderCircle,
-  RefreshCw,
-  Trash2,
+  Search,
+  UserRound,
+  Video,
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
-import type { BenchmarkAccount, BenchmarkSource } from "@/lib/types";
-import { formatDate } from "@/lib/utils";
 import { LoginRequiredDialog } from "@/components/login-required-dialog";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { FieldHelp, FieldLabel, Input } from "@/components/ui/field";
+import type { BenchmarkAccount, BenchmarkSource } from "@/lib/types";
 
 export interface BenchmarkVideoView {
   id: string;
@@ -28,13 +33,56 @@ export interface BenchmarkVideoView {
   analysis_depth: "basic" | "full" | null;
 }
 
-const statusInfo = {
-  pending: { label: "等待解析", icon: LoaderCircle, color: "text-[#8d7962]" },
-  parsing: { label: "正在解析", icon: LoaderCircle, color: "text-[#8d7962]" },
-  parsed: { label: "解析完成", icon: CheckCircle2, color: "text-[#5d7b5c]" },
-  needs_input: { label: "需要补充", icon: AlertCircle, color: "text-[#b66549]" },
-  failed: { label: "解析失败", icon: AlertCircle, color: "text-[#b54c3b]" },
-} as const;
+export type BenchmarkAnalysis = {
+  summary?: string;
+  hook?: string;
+  reusablePatterns?: string[];
+  topicIdeas?: string[];
+  missingInformation?: string[];
+};
+
+type Library = "video" | "account";
+
+const statusInfo: Record<BenchmarkSource["parse_status"], {
+  label: string;
+  icon: typeof LoaderCircle;
+  tone: BadgeTone;
+}> = {
+  pending: { label: "等待整理", icon: LoaderCircle, tone: "neutral" },
+  parsing: { label: "正在整理", icon: LoaderCircle, tone: "neutral" },
+  parsed: { label: "资料完整", icon: CheckCircle2, tone: "success" },
+  needs_input: { label: "待补充", icon: AlertCircle, tone: "warning" },
+  failed: { label: "整理失败", icon: AlertCircle, tone: "warning" },
+};
+
+const libraryInfo: Record<Library, {
+  label: string;
+  heading: string;
+  description: string;
+  searchPlaceholder: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  icon: typeof Video;
+}> = {
+  video: {
+    label: "对标视频",
+    heading: "对标视频库",
+    description: "快速浏览标题和拆解重点，点击卡片进入完整内容。",
+    searchPlaceholder: "搜索标题、作者或关键词",
+    emptyTitle: "对标视频库还是空的",
+    emptyDescription: "收录一条视频分享内容，再补充原文进行完整拆解。",
+    icon: Video,
+  },
+  account: {
+    label: "对标账号",
+    heading: "对标账号库",
+    description: "快速浏览账号定位，点击卡片进入完整账号资料。",
+    searchPlaceholder: "搜索账号、抖音号或定位",
+    emptyTitle: "对标账号库还是空的",
+    emptyDescription: "收录一个账号主页，逐步补充定位和观察笔记。",
+    icon: UserRound,
+  },
+};
 
 export function BenchmarksManager({
   initialSources,
@@ -51,28 +99,48 @@ export function BenchmarksManager({
   const [videos, setVideos] = useState(initialVideos);
   const [accounts, setAccounts] = useState(initialAccounts);
   const [url, setUrl] = useState("");
-  const [busy, setBusy] = useState("");
+  const [library, setLibrary] = useState<Library>("video");
+  const [queries, setQueries] = useState<Record<Library, string>>({ video: "", account: "" });
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [supplements, setSupplements] = useState<Record<string, string>>({});
-  const [corrections, setCorrections] = useState<Record<string, Record<string, string>>>({});
   const [loginReason, setLoginReason] = useState("");
 
-  function mergeEntity(source: BenchmarkSource, entity?: BenchmarkVideoView | BenchmarkAccount | null) {
-    if (!entity) return;
-    if (source.source_type === "account") {
-      setAccounts((current) => [entity as BenchmarkAccount, ...current.filter((item) => item.source_id !== source.id)]);
-    } else {
-      setVideos((current) => [entity as BenchmarkVideoView, ...current.filter((item) => item.source_id !== source.id)]);
-    }
-  }
+  const counts = useMemo(() => ({
+    video: sources.filter((source) => source.source_type !== "account").length,
+    account: sources.filter((source) => source.source_type === "account").length,
+  }), [sources]);
+
+  const filteredSources = useMemo(() => {
+    const normalizedQuery = queries[library].trim().toLocaleLowerCase("zh-CN");
+    return sources.filter((source) => {
+      const belongsToLibrary = library === "account"
+        ? source.source_type === "account"
+        : source.source_type !== "account";
+      if (!belongsToLibrary) return false;
+      if (!normalizedQuery) return true;
+      const video = videos.find((item) => item.source_id === source.id);
+      const account = accounts.find((item) => item.source_id === source.id);
+      const metadata = source.parsed_metadata ?? {};
+      return [
+        video?.title,
+        video?.author_name,
+        video?.description,
+        account?.nickname,
+        account?.douyin_id,
+        account?.bio,
+        metadata.title,
+        metadata.authorName,
+      ].some((value) => String(value ?? "").toLocaleLowerCase("zh-CN").includes(normalizedQuery));
+    });
+  }, [accounts, library, queries, sources, videos]);
 
   async function importLink(event: FormEvent) {
     event.preventDefault();
     if (!authenticated) {
-      setLoginReason("保存和解析对标资料需要登录，避免链接丢失并保护解析与 AI 调用额度。");
+      setLoginReason("保存新的对标资料需要登录，当前示例数据仍可浏览。 ");
       return;
     }
-    setBusy("import");
+    setBusy(true);
     setMessage("");
     const response = await fetch("/api/benchmarks/import", {
       method: "POST",
@@ -80,275 +148,168 @@ export function BenchmarksManager({
       body: JSON.stringify({ url }),
     });
     const result = await response.json();
-    setBusy("");
+    setBusy(false);
     if (!response.ok) return setMessage(result.error);
-    setSources((current) => {
-      const without = current.filter((source) => source.id !== result.data.id);
-      return [result.data, ...without];
-    });
-    mergeEntity(result.data, result.entity);
-    setUrl("");
-    setMessage(result.duplicate ? "该链接已经在资料库中" : result.warning || "链接已保存并完成解析");
-  }
-
-  async function retry(source: BenchmarkSource) {
-    setBusy(source.id);
-    setMessage("");
-    const response = await fetch("/api/benchmarks/import", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ url: source.original_url, force: true }),
-    });
-    const result = await response.json();
-    setBusy("");
-    if (!response.ok) return setMessage(result.error);
-    setSources((current) => current.map((item) => item.id === source.id ? result.data : item));
-    mergeEntity(result.data, result.entity);
-    setMessage(result.warning || "已重新解析");
-  }
-
-  async function saveSupplement(sourceId: string) {
-    setBusy(sourceId);
-    const response = await fetch(`/api/benchmarks/${sourceId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ transcript: supplements[sourceId] || "" }),
-    });
-    const result = await response.json();
-    setBusy("");
-    if (!response.ok) return setMessage(result.error);
-    setVideos((current) => {
-      const without = current.filter((video) => video.source_id !== sourceId);
-      return [result.data, ...without];
-    });
-    setSources((current) => current.map((source) => source.id === sourceId ? { ...source, parse_status: "parsed", error_message: null } : source));
-    setMessage("补充内容已保存");
-  }
-
-  async function saveCorrections(source: BenchmarkSource) {
-    const payload = corrections[source.id];
-    if (!payload) return;
-    setBusy(source.id);
-    const response = await fetch(`/api/benchmarks/${source.id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const result = await response.json();
-    setBusy("");
-    if (!response.ok) return setMessage(result.error);
-    mergeEntity(source, result.data);
-    setSources((current) => current.map((item) => item.id === source.id ? { ...item, parse_status: "parsed", error_message: null } : item));
-    setMessage("修正信息已保存，之后优先使用你的版本");
-  }
-
-  async function analyze(sourceId: string) {
-    setBusy(sourceId);
-    const response = await fetch("/api/ai/benchmarks/analyze", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sourceId }),
-    });
-    const result = await response.json();
-    setBusy("");
-    if (!response.ok) return setMessage(result.error);
-    setVideos((current) => {
-      const without = current.filter((video) => video.source_id !== sourceId);
-      return [result.data, ...without];
-    });
-    setMessage("AI 拆解完成");
-  }
-
-  async function remove(id: string) {
-    const response = await fetch(`/api/benchmarks/${id}`, { method: "DELETE" });
-    if (response.ok) {
-      setSources((current) => current.filter((source) => source.id !== id));
-      setVideos((current) => current.filter((video) => video.source_id !== id));
-      setAccounts((current) => current.filter((account) => account.source_id !== id));
+    setSources((current) => [result.data, ...current.filter((source) => source.id !== result.data.id)]);
+    if (result.entity) {
+      if (result.data.source_type === "account") {
+        setAccounts((current) => [result.entity, ...current.filter((item) => item.source_id !== result.data.id)]);
+      } else {
+        setVideos((current) => [result.entity, ...current.filter((item) => item.source_id !== result.data.id)]);
+      }
     }
+    const destination: Library = result.data.source_type === "account" ? "account" : "video";
+    setLibrary(destination);
+    setQueries((current) => ({ ...current, [destination]: "" }));
+    setUrl("");
+    setMessage(result.duplicate ? "该链接已经在资料库中" : result.warning || "链接已保存并完成整理");
   }
 
   return (
     <>
-      <form onSubmit={importLink} className="paper rounded-lg p-4 sm:rounded-3xl sm:p-7">
-        <div className="flex items-center gap-2">
-          <span className="grid size-9 place-items-center rounded-lg bg-[#fff0e9] text-[#e35f3f] sm:size-10 sm:rounded-2xl"><Link2 className="size-5" /></span>
+      <Card className="p-4 sm:p-5">
+        <form onSubmit={importLink}>
+          <div className="flex items-start gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-control bg-brand-soft text-brand">
+              <Link2 className="size-4" />
+            </span>
+            <div>
+              <h2 className="type-card-title">收录新的对标资料</h2>
+              <p className="type-caption mt-1 text-ink-muted">粘贴完整分享文案或公开链接，保存后进入详情页补充和拆解。</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <Input
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="粘贴链接或“复制打开抖音”的整段文字"
+              type="text"
+              required
+              aria-label="抖音链接"
+            />
+            <Button type="submit" variant="primary" disabled={busy}>
+              {busy ? <LoaderCircle className="animate-spin" /> : <Link2 />}
+              {busy ? "保存中…" : "保存资料"}
+            </Button>
+          </div>
+          <FieldHelp className="mt-2">不会下载视频，也不会绕过访问限制。</FieldHelp>
+          {message ? <p className="type-body-sm mt-3 text-brand-strong" role="status">{message}</p> : null}
+        </form>
+      </Card>
+
+      <section className="mt-6" aria-labelledby="benchmark-list-heading">
+        <p className="type-label text-ink-muted">资料库</p>
+        <div className="mt-2 grid grid-cols-2 gap-2" role="tablist" aria-label="切换对标资料库">
+          {(Object.keys(libraryInfo) as Library[]).map((value) => {
+            const item = libraryInfo[value];
+            const LibraryIcon = item.icon;
+            return (
+              <Button
+                key={value}
+                variant={library === value ? "primary" : "secondary"}
+                className="w-full"
+                role="tab"
+                aria-selected={library === value}
+                aria-controls="benchmark-library-panel"
+                onClick={() => setLibrary(value)}
+              >
+                <LibraryIcon />
+                {item.label}
+                <span className="type-caption">{counts[value]}</span>
+              </Button>
+            );
+          })}
+        </div>
+
+        <div
+          id="benchmark-library-panel"
+          role="tabpanel"
+          className="mt-6 flex flex-col gap-4 border-b border-line pb-4 lg:flex-row lg:items-end lg:justify-between"
+        >
           <div>
-            <h2 className="font-black">粘贴抖音分享内容</h2>
-            <p className="text-xs text-[#82796f]">支持完整分享文案、账号主页、视频长链和短链</p>
+            <h2 id="benchmark-list-heading" className="type-section-title">{libraryInfo[library].heading}</h2>
+            <p className="type-caption mt-1 text-ink-muted">{libraryInfo[library].description}</p>
+          </div>
+          <div className="w-full lg:max-w-sm">
+            <FieldLabel htmlFor="benchmark-search">搜索{libraryInfo[library].label}</FieldLabel>
+            <div className="relative mt-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-subtle" />
+              <Input
+                id="benchmark-search"
+                size="sm"
+                className="field-with-icon"
+                value={queries[library]}
+                onChange={(event) => setQueries((current) => ({ ...current, [library]: event.target.value }))}
+                placeholder={libraryInfo[library].searchPlaceholder}
+              />
+            </div>
           </div>
         </div>
-        <div className="mt-3 flex gap-2 sm:mt-5">
-          <input
-            className="field flex-1"
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder="粘贴链接或“复制打开抖音”的整段文字"
-            type="text"
-            required
-            aria-label="抖音链接"
-          />
-          <button className="btn-primary shrink-0 px-3 sm:min-w-32" disabled={busy === "import"}>
-            {busy === "import" ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-            <span className="hidden sm:inline">{busy === "import" ? "解析中…" : "保存并解析"}</span>
-            <span className="sm:hidden">{busy === "import" ? "解析" : "保存"}</span>
-          </button>
-        </div>
-        <p className="mt-2 hidden text-xs leading-5 text-[#8b8277] sm:block">会自动从分享文案中提取链接；只读取无需登录即可访问的公开网页，不下载视频，也不会绕过访问限制。</p>
-        {message ? <p className="mt-3 text-sm font-semibold text-[#9b503c]">{message}</p> : null}
-      </form>
 
-      <section className="mt-3 sm:mt-6">
-        {sources.length ? (
-            <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
-            {sources.map((source) => {
+        {filteredSources.length ? (
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            {filteredSources.map((source) => {
               const status = statusInfo[source.parse_status];
               const StatusIcon = status.icon;
               const video = videos.find((item) => item.source_id === source.id);
               const account = accounts.find((item) => item.source_id === source.id);
               const metadata = source.parsed_metadata ?? {};
-              const title = account?.nickname || video?.title || String(metadata.title || (source.source_type === "account" ? "对标账号" : "对标视频"));
-              const analysis = video?.ai_analysis as {
-                summary?: string;
-                hook?: string;
-                reusablePatterns?: string[];
-                topicIdeas?: string[];
-                missingInformation?: string[];
-              } | null;
+              const title = account?.nickname || video?.title || String(metadata.title || (source.source_type === "account" ? "待补充的对标账号" : "对标视频"));
+              const author = video?.author_name || String(metadata.authorName || "");
+              const keywords = Array.isArray(metadata.keywords) ? metadata.keywords.map(String).slice(0, 3) : [];
+              const analysis = video?.ai_analysis as BenchmarkAnalysis | null;
+              const preview = analysis?.summary || video?.description || account?.bio || source.error_message;
+              const isAccount = source.source_type === "account";
 
               return (
-                <article key={source.id} className="paper overflow-hidden rounded-lg sm:rounded-3xl">
-                  <div className="p-4 sm:p-6">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${status.color}`}>
-                          <StatusIcon className={`size-3.5 ${source.parse_status === "parsing" ? "animate-spin" : ""}`} />
-                          {status.label} · {source.source_type === "account" ? "账号" : source.source_type === "video" ? "视频" : "待识别"}
-                        </span>
-                        <h3 className="mt-2 line-clamp-2 text-base font-black sm:mt-3 sm:text-lg">{title}</h3>
-                        {video?.author_name ? <p className="mt-1 text-xs text-[#877e73]">作者：{video.author_name}</p> : null}
-                        {account?.douyin_id ? <p className="mt-1 text-xs text-[#877e73]">抖音号：{account.douyin_id}</p> : null}
+                <article key={source.id}>
+                  <Link href={`/benchmarks/${source.id}`} className="group block h-full rounded-card">
+                    <Card className="flex h-full flex-col p-4 transition-colors group-hover:border-line-strong sm:p-5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone="neutral">
+                          {isAccount ? <UserRound className="size-3" /> : <Video className="size-3" />}
+                          {isAccount ? "账号" : "视频"}
+                        </Badge>
+                        <Badge tone={status.tone}>
+                          <StatusIcon className={source.parse_status === "parsing" ? "size-3 animate-spin" : "size-3"} />
+                          {status.label}
+                        </Badge>
+                        {analysis ? <Badge tone="brand"><FileText className="size-3" />已拆解</Badge> : null}
                       </div>
-                      <button type="button" className="btn-ghost min-h-8 p-2" aria-label="删除对标资料" onClick={() => void remove(source.id)}>
-                        <Trash2 className="size-4" />
-                      </button>
-                    </div>
-                    <a href={source.normalized_url || source.original_url} target="_blank" rel="noreferrer" className="mt-3 flex items-center gap-1.5 truncate text-xs font-semibold text-[#e35f3f] sm:mt-4">
-                      查看原链接 <ExternalLink className="size-3" />
-                    </a>
-                    {video?.description ? <p className="mt-4 line-clamp-3 text-sm leading-6 text-[#706b62]">{video.description}</p> : null}
-                    {account?.bio ? <p className="mt-4 line-clamp-3 text-sm leading-6 text-[#706b62]">{account.bio}</p> : null}
-                    {source.error_message ? (
-                      <div className="mt-4 rounded-2xl bg-[#fff3ee] p-3 text-xs leading-5 text-[#9a4e39]">{source.error_message}</div>
-                    ) : null}
-                    {source.parse_status === "failed" || source.parse_status === "needs_input" ? (
-                      <button type="button" className="btn-secondary mt-4" disabled={busy === source.id} onClick={() => void retry(source)}>
-                        <RefreshCw className={`size-4 ${busy === source.id ? "animate-spin" : ""}`} /> 重新解析
-                      </button>
-                    ) : null}
-                    {source.source_type === "video" && !video?.transcript ? (
-                      <div className="mt-4">
-                        <label className="mb-2 block text-xs font-bold" htmlFor={`supplement-${source.id}`}>补充口播原文或内容摘要（可选）</label>
-                        <textarea
-                          id={`supplement-${source.id}`}
-                          className="field min-h-24 resize-y text-sm"
-                          value={supplements[source.id] || ""}
-                          onChange={(event) => setSupplements({ ...supplements, [source.id]: event.target.value })}
-                          placeholder="公开页面没有正文时，粘贴在这里可获得完整拆解"
-                        />
-                        <button type="button" className="btn-secondary mt-2" disabled={!supplements[source.id] || busy === source.id} onClick={() => void saveSupplement(source.id)}>
-                          保存补充内容
-                        </button>
-                      </div>
-                    ) : null}
-                    {source.source_type !== "unknown" ? (
-                      <details className="mt-4 border-t border-[#e7e0d5] pt-4">
-                        <summary className="cursor-pointer text-xs font-bold text-[#746d64]">修正自动识别信息</summary>
-                        <div className="mt-3 grid gap-2">
-                          {source.source_type === "account" ? (
-                            <>
-                              <input
-                                className="field text-sm"
-                                aria-label="修正账号昵称"
-                                placeholder="账号昵称"
-                                value={corrections[source.id]?.nickname ?? account?.nickname ?? ""}
-                                onChange={(event) => setCorrections((current) => ({ ...current, [source.id]: { ...current[source.id], nickname: event.target.value } }))}
-                              />
-                              <input
-                                className="field text-sm"
-                                aria-label="修正抖音号"
-                                placeholder="抖音号"
-                                value={corrections[source.id]?.douyin_id ?? account?.douyin_id ?? ""}
-                                onChange={(event) => setCorrections((current) => ({ ...current, [source.id]: { ...current[source.id], douyin_id: event.target.value } }))}
-                              />
-                              <textarea
-                                className="field min-h-20 text-sm"
-                                aria-label="修正账号简介"
-                                placeholder="账号简介"
-                                value={corrections[source.id]?.bio ?? account?.bio ?? ""}
-                                onChange={(event) => setCorrections((current) => ({ ...current, [source.id]: { ...current[source.id], bio: event.target.value } }))}
-                              />
-                            </>
-                          ) : (
-                            <>
-                              <input
-                                className="field text-sm"
-                                aria-label="修正视频标题"
-                                placeholder="视频标题"
-                                value={corrections[source.id]?.title ?? video?.title ?? ""}
-                                onChange={(event) => setCorrections((current) => ({ ...current, [source.id]: { ...current[source.id], title: event.target.value } }))}
-                              />
-                              <input
-                                className="field text-sm"
-                                aria-label="修正作者名称"
-                                placeholder="作者名称"
-                                value={corrections[source.id]?.author_name ?? video?.author_name ?? ""}
-                                onChange={(event) => setCorrections((current) => ({ ...current, [source.id]: { ...current[source.id], author_name: event.target.value } }))}
-                              />
-                              <textarea
-                                className="field min-h-20 text-sm"
-                                aria-label="修正视频描述"
-                                placeholder="视频描述"
-                                value={corrections[source.id]?.description ?? video?.description ?? ""}
-                                onChange={(event) => setCorrections((current) => ({ ...current, [source.id]: { ...current[source.id], description: event.target.value } }))}
-                              />
-                            </>
-                          )}
-                          <button type="button" className="btn-secondary w-fit" disabled={busy === source.id} onClick={() => void saveCorrections(source)}>
-                            保存修正
-                          </button>
+
+                      <h3 className="type-card-title mt-3 group-hover:text-brand-strong">{title}</h3>
+                      {author ? <p className="type-caption mt-1 text-ink-muted">作者：{author}</p> : null}
+                      {account?.douyin_id ? <p className="type-caption mt-1 text-ink-muted">抖音号：{account.douyin_id}</p> : null}
+
+                      {keywords.length ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {keywords.map((keyword) => <Badge key={keyword} tone="neutral">{keyword}</Badge>)}
                         </div>
-                      </details>
-                    ) : null}
-                    {source.source_type === "video" && (video?.title || video?.description || video?.transcript) ? (
-                      <button type="button" className="btn-primary mt-4" disabled={busy === source.id} onClick={() => void analyze(source.id)}>
-                        {busy === source.id ? <LoaderCircle className="size-4 animate-spin" /> : <Bot className="size-4" />}
-                        {video?.ai_analysis ? "重新拆解" : "AI 拆解"}
-                      </button>
-                    ) : null}
-                    <p className="mt-3 text-[10px] text-[#a1988d] sm:mt-4">保存于 {formatDate(source.created_at)}</p>
-                  </div>
-                  {analysis ? (
-                    <div className="border-t border-[#e7e0d5] bg-[#f4f0e8] p-5 sm:p-6">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-black">拆解结果</h4>
-                        <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold">{video?.analysis_depth === "full" ? "完整分析" : "基础分析"}</span>
+                      ) : null}
+
+                      {preview ? <p className="type-body-sm mt-3 line-clamp-2 text-ink-muted">{preview}</p> : null}
+
+                      <div className="type-label mt-auto flex items-center justify-between border-t border-line pt-4 text-brand">
+                        <span>{isAccount ? "查看账号资料" : "查看详细拆解"}</span>
+                        <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                       </div>
-                      <p className="mt-3 text-sm leading-6 text-[#5f5a52]">{analysis.summary}</p>
-                      {analysis.hook ? <div className="mt-4 rounded-2xl bg-white p-3"><p className="text-[10px] font-black text-[#f46f4c]">开场钩子</p><p className="mt-1 text-sm font-semibold">{analysis.hook}</p></div> : null}
-                      {analysis.reusablePatterns?.length ? <List title="可复用套路" items={analysis.reusablePatterns} /> : null}
-                      {analysis.topicIdeas?.length ? <List title="衍生选题" items={analysis.topicIdeas} /> : null}
-                      {analysis.missingInformation?.length ? <List title="信息缺口" items={analysis.missingInformation} /> : null}
-                    </div>
-                  ) : null}
+                    </Card>
+                  </Link>
                 </article>
               );
             })}
           </div>
         ) : (
-          <EmptyState title="还没有对标资料" description="粘贴一个公开抖音链接，系统会先保存，再尝试解析。" />
+          <div className="mt-4">
+            {queries[library] ? (
+              <EmptyState title="没有匹配的资料" description={`换一个关键词，或切换到${library === "video" ? "对标账号库" : "对标视频库"}。`} />
+            ) : (
+              <EmptyState title={libraryInfo[library].emptyTitle} description={libraryInfo[library].emptyDescription} />
+            )}
+          </div>
         )}
       </section>
+
       <LoginRequiredDialog
         open={Boolean(loginReason)}
         reason={loginReason}
@@ -356,16 +317,5 @@ export function BenchmarksManager({
         onClose={() => setLoginReason("")}
       />
     </>
-  );
-}
-
-function List({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div className="mt-4">
-      <p className="text-xs font-black">{title}</p>
-      <ul className="mt-2 space-y-1.5 text-xs leading-5 text-[#706b62]">
-        {items.map((item) => <li key={item} className="flex gap-2"><span className="text-[#f46f4c]">•</span>{item}</li>)}
-      </ul>
-    </div>
   );
 }

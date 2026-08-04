@@ -4,8 +4,23 @@ import {
   optimizationGoalValues,
   rewriteLevelValues,
 } from "@/lib/script-ai";
+import {
+  normalizePublicationUrlInput,
+  PUBLICATION_URL_INPUT_MAX_LENGTH,
+} from "@/lib/publication-url";
 
-const httpsUrl = z.string().url().refine((value) => new URL(value).protocol === "https:", {
+const httpsUrl = z.string()
+  .trim()
+  .max(PUBLICATION_URL_INPUT_MAX_LENGTH, "内容过长，请确认粘贴的是链接或分享文案")
+  .transform(normalizePublicationUrlInput)
+  .pipe(z.string().url("请输入完整 URL，或包含 URL 的整段分享文案"))
+  .refine((value) => {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}, {
   message: "只支持 HTTPS 链接",
 });
 

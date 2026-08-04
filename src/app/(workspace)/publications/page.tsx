@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/page-header";
 import { SetupBanner } from "@/components/setup-banner";
 import { PublicationsManager } from "@/components/publications-manager";
 import { loadRelated, loadRows } from "@/lib/load-data";
+import { demoSharePublication, demoShareScript, demoShareVersion } from "@/lib/demo-content";
 import type { MetricSnapshot, Publication, Script, ScriptVersion } from "@/lib/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,6 +24,18 @@ export default async function PublicationsPage({
     loadRelated<MetricSnapshot>("metric_snapshots", "publication_id", publications.map((item) => item.id)),
     loadRelated<ScriptVersion>("script_versions", "script_id", scripts.map((item) => item.id)),
   ]);
+  const displayedPublications = process.env.NODE_ENV === "development" &&
+    !publications.some((item) => item.video_url === demoSharePublication.video_url)
+    ? [demoSharePublication, ...publications]
+    : publications;
+  const displayedScripts = process.env.NODE_ENV === "development" &&
+    !scripts.some((item) => item.id === demoShareScript.id)
+    ? [demoShareScript, ...scripts]
+    : scripts;
+  const displayedVersions = process.env.NODE_ENV === "development" &&
+    !versions.some((item) => item.id === demoShareVersion.id)
+    ? [demoShareVersion, ...versions]
+    : versions;
   return (
     <>
       <PageHeader
@@ -32,10 +45,10 @@ export default async function PublicationsPage({
       />
       <SetupBanner />
       <PublicationsManager
-        initialPublications={publications}
+        initialPublications={displayedPublications}
         initialSnapshots={snapshots}
-        scripts={scripts}
-        versions={versions}
+        scripts={displayedScripts}
+        versions={displayedVersions}
         initialScriptId={initialScriptId}
         initialVersionId={initialVersionId}
         authenticated={Boolean(user)}

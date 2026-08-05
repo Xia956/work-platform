@@ -72,6 +72,24 @@ describe("guest content", () => {
       { ...base, id: "2", stage: "rough_draft" },
       { ...base, id: "3", stage: "ai_optimized" },
       { ...base, id: "4", stage: "ready" },
-    ])).toEqual({ ideas: 1, active: 2, ready: 1, completed: 0 });
+      { ...base, id: "5", stage: "published" },
+    ])).toEqual({ ideas: 1, active: 2, ready: 1, completed: 1 });
+  });
+
+  it("keeps a locally published item available after reload", () => {
+    const project = guestContentToProject({
+      ...base,
+      draft: "这是最终确认的发布文案。",
+      stage: "published",
+    });
+
+    expect(project.stage).toBe("published");
+    expect(project.progress).toBe(100);
+    expect(project.script?.status).toBe("published");
+    expect(project.publication).toMatchObject({
+      id: `guest-publication-${base.id}`,
+      script_version_id: `guest-version-${base.id}`,
+      is_demo: true,
+    });
   });
 });

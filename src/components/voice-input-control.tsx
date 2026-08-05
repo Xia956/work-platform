@@ -10,7 +10,6 @@ interface SpeechRecognitionResultLike {
 }
 
 interface SpeechRecognitionEventLike {
-  resultIndex: number;
   results: ArrayLike<SpeechRecognitionResultLike>;
 }
 
@@ -48,11 +47,25 @@ function recognitionErrorMessage(error: string) {
   return "语音输入暂时不可用，请稍后再试";
 }
 
+export function mergeVoiceTranscript(
+  current: string,
+  results: ArrayLike<SpeechRecognitionResultLike>,
+  maxLength: number,
+) {
+  const transcript = Array.from(results, (result) => result[0]?.transcript ?? "").join("").trim();
+  const separator = current && transcript && !/\s$/.test(current) ? "\n" : "";
+  return `${current}${separator}${transcript}`.slice(0, maxLength);
+}
+
 export function VoiceInputControl({
-  onTranscript,
+  value,
+  onChange,
+  maxLength,
   disabled = false,
 }: {
-  onTranscript: (transcript: string) => void;
+  value: string;
+  onChange: (value: string) => void;
+  maxLength: number;
   disabled?: boolean;
 }) {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -91,17 +104,13 @@ export function VoiceInputControl({
     }
 
     const recognition = new Recognition();
+    const initialValue = value;
     recognition.lang = "zh-CN";
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     let failed = false;
     recognition.onresult = (event) => {
-      let transcript = "";
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const result = event.results[index];
-        if (result.isFinal) transcript += result[0]?.transcript ?? "";
-      }
-      if (transcript.trim()) onTranscript(transcript.trim());
+      onChange(mergeVoiceTranscript(initialValue, event.results, maxLength));
     };
     recognition.onerror = (event) => {
       failed = true;

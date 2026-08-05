@@ -9,13 +9,20 @@ import { createClient } from "@/lib/supabase/server";
 export default async function PublicationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ script?: string | string[]; version?: string | string[] }>;
+  searchParams: Promise<{
+    script?: string | string[];
+    version?: string | string[];
+    publication?: string | string[];
+    guest?: string | string[];
+  }>;
 }) {
   const requested = await searchParams;
   const supabase = await createClient();
   const user = supabase ? (await supabase.auth.getUser()).data.user : null;
   const initialScriptId = Array.isArray(requested.script) ? requested.script[0] : requested.script;
   const initialVersionId = Array.isArray(requested.version) ? requested.version[0] : requested.version;
+  const initialPublicationId = Array.isArray(requested.publication) ? requested.publication[0] : requested.publication;
+  const initialGuestId = Array.isArray(requested.guest) ? requested.guest[0] : requested.guest;
   const [publications, scripts] = await Promise.all([
     loadRows<Publication>("publications", "published_at"),
     loadRows<Script>("scripts"),
@@ -51,6 +58,8 @@ export default async function PublicationsPage({
         versions={displayedVersions}
         initialScriptId={initialScriptId}
         initialVersionId={initialVersionId}
+        initialPublicationId={initialPublicationId}
+        initialGuestId={initialGuestId}
         authenticated={Boolean(user)}
       />
     </>

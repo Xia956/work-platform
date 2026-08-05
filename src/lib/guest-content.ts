@@ -22,7 +22,7 @@ export interface GuestContent {
   draft: string;
   tags?: string[];
   aiVersions?: GuestAiVersion[];
-  stage: Exclude<ContentStage, "published">;
+  stage: ContentStage;
   createdAt: string;
   updatedAt: string;
 }
@@ -48,7 +48,7 @@ function isGuestContent(value: unknown): value is GuestContent {
         typeof version.estimatedDuration === "number" &&
         typeof version.createdAt === "string"
       ))) &&
-    ["idea", "rough_draft", "ai_optimized", "ready"].includes(item.stage ?? "") &&
+    ["idea", "rough_draft", "ai_optimized", "ready", "published"].includes(item.stage ?? "") &&
     typeof item.createdAt === "string" &&
     typeof item.updatedAt === "string"
   );
@@ -159,6 +159,7 @@ export function guestContentToProject(item: GuestContent): ContentProject {
     rough_draft: 1,
     ai_optimized: 2,
     ready: 3,
+    published: 4,
   }[item.stage];
   const inspirationId = `guest-inspiration-${item.id}`;
   const topicId = `guest-topic-${item.id}`;
@@ -203,7 +204,7 @@ export function guestContentToProject(item: GuestContent): ContentProject {
           id: scriptId,
           title: item.title,
           topic_id: item.direction ? topicId : null,
-          status: item.stage === "ready" ? "ready" : "drafting",
+          status: item.stage === "published" ? "published" : item.stage === "ready" ? "ready" : "drafting",
           target_duration: 60,
           current_version_id: versionId,
           autosave_content: item.draft,
@@ -239,7 +240,19 @@ export function guestContentToProject(item: GuestContent): ContentProject {
           created_at: version.createdAt,
         }))]
       : [],
-    publication: null,
+    publication: item.stage === "published" && item.draft
+      ? {
+          id: `guest-publication-${item.id}`,
+          title: item.title,
+          script_id: scriptId,
+          script_version_id: versionId,
+          video_url: null,
+          published_at: item.updatedAt,
+          notes: null,
+          is_demo: true,
+          created_at: item.updatedAt,
+        }
+      : null,
     snapshots: [],
   };
 }
@@ -251,6 +264,6 @@ export function guestStats(items: GuestContent[]) {
       (item) => item.stage === "rough_draft" || item.stage === "ai_optimized",
     ).length,
     ready: items.filter((item) => item.stage === "ready").length,
-    completed: 0,
+    completed: items.filter((item) => item.stage === "published").length,
   };
 }

@@ -236,7 +236,7 @@ export function ContentLibrary({
     <>
       {guestMode ? (
         <div className="mb-3 rounded-lg border border-[#dfcda7] bg-[#faf4e7] px-3 py-2.5 text-xs leading-5 text-[#6f5a35]">
-          访客内容仅保存在当前设备。登录后可同步，并继续使用 AI、发布和复盘。
+          访客内容仅保存在当前设备。无需登录即可测试发布状态；登录后可同步并使用云端功能。
         </div>
       ) : null}
       <div className={cn("mb-3 flex flex-col gap-2 sm:mb-5 lg:flex-row lg:items-center lg:justify-between", mobileView === "project" && "hidden xl:flex")}>
@@ -467,7 +467,7 @@ function ProjectPanel({
     if (stage === "rough_draft") return Boolean(project.topic || project.script);
     if (stage === "ai_optimized") return Boolean(project.script);
     if (stage === "ready") return Boolean(project.script && currentVersionId);
-    return Boolean(project.publication);
+    return project.isGuest ? Boolean(project.script && currentVersionId) : Boolean(project.publication);
   }
 
   async function request(
@@ -776,7 +776,6 @@ function ProjectPanel({
     if (!project.inspiration || !canMoveToStage(nextStage) || nextStage === workflowStage) return;
 
     if (project.isGuest && guestId) {
-      if (nextStage === "published") return;
       if (nextStage === "ready" && !editor.trim()) {
         setMessage("最终文案不能为空");
         return;
@@ -895,8 +894,11 @@ function ProjectPanel({
         </div>
       </div>
 
-      <div className="space-y-4 p-4 sm:space-y-5 sm:p-5">
-        {project.inspiration && (tags.length > 0 || workflowStage !== "ready") ? (
+      <div className={cn(
+        "p-4 sm:p-5",
+        workflowStage === "published" ? "space-y-3" : "space-y-4 sm:space-y-5",
+      )}>
+        {project.inspiration && workflowStage !== "published" && (tags.length > 0 || workflowStage !== "ready") ? (
           <div>
             {tags.length ? (
               <div className="mb-2 flex flex-wrap gap-1.5">
@@ -1181,7 +1183,8 @@ function ProjectPanel({
                 <button
                   type="button"
                   className="btn-primary w-full"
-                  onClick={() => setLoginReason("正式发布和数据复盘需要登录，以便关联文案版本并持续保存数据。")}
+                  disabled={busy}
+                  onClick={() => void changeWorkflowStage("published")}
                 >
                   标记为已发布 <ArrowRight className="size-4" />
                 </button>
@@ -1198,29 +1201,68 @@ function ProjectPanel({
         ) : null}
 
         {workflowStage === "published" ? (
-          <div className="rounded-lg bg-[#e7eee9] p-4 text-sm text-[#4c6456]">
-            <p className="font-semibold">这条内容已发布</p>
-            {project.publication ? (
-              <div className="mt-2 space-y-1.5 text-xs">
-                <p className="flex items-center gap-1.5">
-                  <CalendarDays className="size-3.5" /> {formatDate(project.publication.published_at)}
-                </p>
-                {project.publication.video_url ? (
-                  <a
-                    href={project.publication.video_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 font-semibold underline underline-offset-2"
-                  >
-                    查看发布视频 <ExternalLink className="size-3.5" />
-                  </a>
+          <>
+            <section>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="type-eyebrow text-brand uppercase">Published script</p>
+                  <h3 className="type-body mt-1 flex items-center gap-2 text-ink">
+                    <FileText className="size-4 text-brand" />文案
+                  </h3>
+                </div>
+                {project.inspiration ? (
+                  <ContentTagPicker
+                    value={tags}
+                    onChange={(nextTags) => void saveTags(nextTags)}
+                    historyTags={historyTags}
+                    collapsedLabel={tags.length ? "编辑标签" : "+ 添加标签"}
+                    className="ml-auto w-fit max-w-full"
+                    defaultExpanded={false}
+                    disabled={busy}
+                  />
                 ) : null}
               </div>
-            ) : null}
-            <p className="mt-2 leading-6">
-              {project.snapshots.length ? `已有 ${project.snapshots.length} 次数据快照，可前往复盘查看表现。` : "还没有数据快照，建议发布后及时记录表现。"}
-            </p>
-          </div>
+              <p className="type-body mt-3 whitespace-pre-wrap border-l-2 border-brand-soft pl-4 text-ink-muted sm:pl-5">
+                {editor.trim() || "暂无发布文案"}
+              </p>
+            </section>
+
+            <div className={cn(
+              "rounded-lg bg-[#e7eee9] px-4 text-sm text-[#4c6456]",
+              project.publication?.video_url || project.snapshots.length ? "py-4" : "flex h-10 items-center",
+            )}>
+              <div className="flex items-center gap-3">
+                <p className="flex items-center gap-1.5 font-semibold"><Check className="size-4" /> 已发布</p>
+                {project.publication ? (
+                  <p className="flex items-center gap-1.5 text-xs">
+                    <CalendarDays className="size-3.5" /> {formatDate(project.publication.published_at)}
+                  </p>
+                ) : null}
+              </div>
+              {project.publication?.video_url ? (
+                <a
+                  href={project.publication.video_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold underline underline-offset-2"
+                >
+                  查看发布视频 <ExternalLink className="size-3.5" />
+                </a>
+              ) : null}
+              {project.snapshots.length ? <p className="mt-2">已记录 {project.snapshots.length} 次数据快照</p> : null}
+            </div>
+
+            <Link
+              href={project.isGuest && project.guestId
+                ? `/publications?guest=${project.guestId}`
+                : project.publication
+                  ? `/publications?publication=${project.publication.id}`
+                  : "/publications"}
+              className="btn-primary w-full"
+            >
+              开始复盘 <ArrowRight className="size-4" />
+            </Link>
+          </>
         ) : null}
 
         {previousStage && canMoveToStage(previousStage.value) ? (

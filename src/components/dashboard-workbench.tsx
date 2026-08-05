@@ -17,11 +17,6 @@ import {
 
 type CreateMode = "idea" | "content" | null;
 
-function appendVoiceTranscript(current: string, transcript: string, maxLength: number) {
-  const separator = current && !/\s$/.test(current) ? "\n" : "";
-  return `${current}${separator}${transcript}`.slice(0, maxLength);
-}
-
 interface DashboardStats {
   ideas: number;
   active: number;
@@ -242,9 +237,9 @@ export function DashboardWorkbench({
                   required
                 />
                 <VoiceInputControl
-                  onTranscript={(transcript) =>
-                    setIdea((current) => appendVoiceTranscript(current, transcript, 120))
-                  }
+                  value={idea}
+                  onChange={setIdea}
+                  maxLength={120}
                   disabled={busy}
                 />
               </div>
@@ -281,12 +276,9 @@ export function DashboardWorkbench({
                   required
                 />
                 <VoiceInputControl
-                  onTranscript={(transcript) =>
-                    setContentForm((current) => ({
-                      ...current,
-                      draft: appendVoiceTranscript(current.draft, transcript, 20000),
-                    }))
-                  }
+                  value={contentForm.draft}
+                  onChange={(draft) => setContentForm((current) => ({ ...current, draft }))}
+                  maxLength={20000}
                   disabled={busy}
                 />
               </div>

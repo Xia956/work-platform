@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { BarChart3, Bot, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, Pencil, Trash2, TrendingUp } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { calculateDelta, calculateRates } from "@/lib/metrics";
@@ -15,6 +15,7 @@ import {
   normalizePublicationUrlInput,
   PUBLICATION_URL_INPUT_MAX_LENGTH,
 } from "@/lib/publication-url";
+import { guestContentToProject, readGuestContents } from "@/lib/guest-content";
 
 const versionTypeLabels: Record<ScriptVersion["version_type"], string> = {
   rough_draft: "粗稿",
@@ -31,6 +32,8 @@ export function PublicationsManager({
   versions,
   initialScriptId,
   initialVersionId,
+  initialPublicationId,
+  initialGuestId,
   authenticated,
 }: {
   initialPublications: Publication[];
@@ -39,6 +42,8 @@ export function PublicationsManager({
   versions: ScriptVersion[];
   initialScriptId?: string;
   initialVersionId?: string;
+  initialPublicationId?: string;
+  initialGuestId?: string;
   authenticated: boolean;
 }) {
   const requestedScript = scripts.find((script) => script.id === initialScriptId) ?? null;
@@ -51,7 +56,8 @@ export function PublicationsManager({
     null;
   const [publications, setPublications] = useState(initialPublications);
   const [snapshots, setSnapshots] = useState(initialSnapshots);
-  const [selectedId, setSelectedId] = useState("");
+  const [localVersions, setLocalVersions] = useState<ScriptVersion[]>([]);
+  const [selectedId, setSelectedId] = useState(initialPublicationId ?? "");
   const [showCreate, setShowCreate] = useState(Boolean(requestedScript && requestedVersion));
   const [editingId, setEditingId] = useState("");
   const [message, setMessage] = useState("");
@@ -77,9 +83,24 @@ export function PublicationsManager({
   });
   const [loginReason, setLoginReason] = useState("");
 
+  useEffect(() => {
+    if (!initialGuestId) return;
+    const timeout = window.setTimeout(() => {
+      const guestContent = readGuestContents().find((item) => item.id === initialGuestId);
+      if (!guestContent) return;
+      const project = guestContentToProject(guestContent);
+      const publication = project.publication;
+      if (!publication) return;
+      setPublications((current) => [publication, ...current.filter((item) => item.id !== publication.id)]);
+      setLocalVersions(project.versions);
+      setSelectedId(publication.id);
+    });
+    return () => window.clearTimeout(timeout);
+  }, [initialGuestId]);
+
   const selected = publications.find((item) => item.id === selectedId) ?? null;
   const publishedVersion = selected
-    ? versions.find((version) => version.id === selected.script_version_id) ?? null
+    ? [...localVersions, ...versions].find((version) => version.id === selected.script_version_id) ?? null
     : null;
   const publishedCopyParagraphs = publishedVersion?.content
     ? formatPublishedCopyParagraphs(publishedVersion.content)

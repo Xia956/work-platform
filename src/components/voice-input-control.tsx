@@ -52,7 +52,11 @@ export function mergeVoiceTranscript(
   results: ArrayLike<SpeechRecognitionResultLike>,
   maxLength: number,
 ) {
-  const transcript = Array.from(results, (result) => result[0]?.transcript ?? "").join("").trim();
+  const transcript = Array.from(results, (result, index) => {
+    const text = (result[0]?.transcript ?? "").trim();
+    if (!text || !result.isFinal || /[，。！？；：、,.!?;:]$/u.test(text)) return text;
+    return `${text}${index === results.length - 1 ? "。" : "，"}`;
+  }).join("");
   const separator = current && transcript && !/\s$/.test(current) ? "\n" : "";
   return `${current}${separator}${transcript}`.slice(0, maxLength);
 }

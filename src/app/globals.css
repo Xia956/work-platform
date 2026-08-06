@@ -74,6 +74,7 @@
   --ds-control-height-icon: 32px;
   --ds-field-action-bottom-offset: 14px;
   --ds-input-height: 46px;
+  --ds-ready-editor-height: 200px;
   --ds-page-x-mobile: 12px;
   --ds-page-x-desktop: 32px;
   --ds-page-x-wide: 48px;
@@ -338,6 +339,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .field.ui-script-editor,
 .ui-field.ui-script-editor {
   min-height: 128px;
+}
+
+.field.ui-ready-editor {
+  height: var(--ds-ready-editor-height);
+  min-height: var(--ds-ready-editor-height);
 }
 
 .field.ui-capture-editor--idea {

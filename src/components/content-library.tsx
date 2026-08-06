@@ -16,6 +16,7 @@ import {
   FileText,
   Hash,
   Lightbulb,
+  Pencil,
   Rocket,
   Search,
   Sparkles,
@@ -29,7 +30,7 @@ import { LoginRequiredDialog } from "@/components/login-required-dialog";
 import { ScriptOptimizationPanel } from "@/components/script-optimization-panel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/field";
+import { Input, Textarea } from "@/components/ui/field";
 import {
   readOptimizationSource,
   readOptimizationSummary,
@@ -328,6 +329,9 @@ export function ContentLibrary({
               historyTags={availableTags}
               onChanged={refresh}
               onAdvanced={showDraftStep}
+              onTitleChanged={(title) => setProjects((current) => current.map((item) =>
+                item.id === selected.id ? { ...item, title } : item
+              ))}
               defaultDuration={defaultDuration}
             />
           </aside>
@@ -403,16 +407,22 @@ function ProjectPanel({
   historyTags,
   onChanged,
   onAdvanced,
+  onTitleChanged,
   defaultDuration,
 }: {
   project: ContentProject;
   historyTags: string[];
   onChanged: () => void;
   onAdvanced: (project: ContentProject) => void;
+  onTitleChanged: (title: string) => void;
   defaultDuration: number;
 }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+  const [title, setTitle] = useState(project.title);
+  const [savedTitle, setSavedTitle] = useState(project.title);
+  const [editingTitle, setEditingTitle] = useState(false);
   const [savingPrimary, setSavingPrimary] = useState(false);
   const [savingAiVersion, setSavingAiVersion] = useState(false);
   const [versions, setVersions] = useState(project.versions);
@@ -473,10 +483,14 @@ function ProjectPanel({
   async function request(
     url: string,
     init: RequestInit,
-    options: { activity?: "global" | "primary" | "ai"; refresh?: boolean } = {},
+    options: { activity?: "global" | "primary" | "ai" | "optimization"; refresh?: boolean } = {},
   ) {
     const activity = options.activity ?? "global";
     if (activity === "global") setBusy(true);
+    if (activity === "optimization") {
+      setBusy(true);
+      setOptimizing(true);
+    }
     if (activity === "primary") setSavingPrimary(true);
     if (activity === "ai") setSavingAiVersion(true);
     setMessage("");
@@ -494,6 +508,10 @@ function ProjectPanel({
       return null;
     } finally {
       if (activity === "global") setBusy(false);
+      if (activity === "optimization") {
+        setBusy(false);
+        setOptimizing(false);
+      }
       if (activity === "primary") setSavingPrimary(false);
       if (activity === "ai") setSavingAiVersion(false);
     }
@@ -564,6 +582,46 @@ function ProjectPanel({
     } else {
       setTags(previousTags);
     }
+  }
+
+  async function saveTitle(event: FormEvent) {
+    event.preventDefault();
+    const nextTitle = title.trim();
+    if (!nextTitle) {
+      setMessage("标题不能为空");
+      return;
+    }
+    if (nextTitle === savedTitle) {
+      setEditingTitle(false);
+      return;
+    }
+
+    if (project.isGuest && guestId) {
+      updateGuestContent(guestId, { title: nextTitle });
+    } else {
+      const target = project.publication
+        ? { url: "/api/data/publications", body: { id: project.publication.id, data: { title: nextTitle } } }
+        : project.script
+          ? { url: "/api/scripts", body: { action: "updateTitle", scriptId: project.script.id, title: nextTitle } }
+          : project.topic
+            ? { url: "/api/data/topics", body: { id: project.topic.id, data: { title: nextTitle } } }
+            : project.inspiration
+              ? { url: "/api/data/inspirations", body: { id: project.inspiration.id, data: { title: nextTitle } } }
+              : null;
+      if (!target) return;
+      const result = await request(target.url, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(target.body),
+      }, { refresh: false });
+      if (!result) return;
+    }
+
+    setTitle(nextTitle);
+    setSavedTitle(nextTitle);
+    setEditingTitle(false);
+    onTitleChanged(nextTitle);
+    setMessage("标题已保存");
   }
 
   async function savePrimary(showMessage = true) {
@@ -676,7 +734,7 @@ function ProjectPanel({
         applyResult: false,
         ...options,
       }),
-    });
+    }, { activity: "optimization" });
     if (result) {
       setVersions((current) => [result.data, ...current]);
       setSelectedAiVersionId(result.data.id);
@@ -867,7 +925,41 @@ function ProjectPanel({
     <div className="paper overflow-hidden rounded-lg">
       <div className="border-b border-[#ddd5c9] bg-[#f8f4ed] p-4 sm:p-5">
         <p className="text-[10px] font-semibold tracking-[.16em] text-[#a84f35] uppercase">Current project</p>
-        <h2 className="mt-1.5 text-lg font-semibold leading-6 sm:mt-2 sm:text-xl sm:leading-7">{project.title}</h2>
+        {editingTitle ? (
+          <form className="mt-2 flex items-center gap-2" onSubmit={saveTitle}>
+            <label className="sr-only" htmlFor={`project-title-${project.id}`}>内容标题</label>
+            <Input
+              id={`project-title-${project.id}`}
+              className="min-w-0 flex-1 font-semibold"
+              value={title}
+              maxLength={!project.publication && !project.script && !project.topic ? 120 : 160}
+              disabled={busy}
+              autoFocus
+              onChange={(event) => setTitle(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Escape") return;
+                setTitle(savedTitle);
+                setEditingTitle(false);
+              }}
+            />
+            <Button type="submit" size="sm" disabled={busy || !title.trim()}>
+              保存
+            </Button>
+          </form>
+        ) : (
+          <div className="mt-2 flex items-start justify-between gap-2">
+            <h2 className="type-section-title min-w-0">{savedTitle}</h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="修改标题"
+              title="修改标题"
+              onClick={() => setEditingTitle(true)}
+            >
+              <Pencil />
+            </Button>
+          </div>
+        )}
         <div className="mt-3 grid grid-cols-5 gap-1 sm:mt-5" aria-label={`当前进度 ${(workflowStageIndex + 1) * 20}%`}>
           {contentStages.map((stage, index) => (
             <button
@@ -962,7 +1054,6 @@ function ProjectPanel({
                   <div>
                     <p className="text-[10px] font-semibold tracking-[.14em] text-[#9a503b] uppercase">Final version</p>
                     <h3 className="mt-1 text-base font-semibold">待发布文案</h3>
-                    <p className="mt-1 text-[11px] leading-5 text-[#82796f]">这里只保留已经确认的最终版本，返回上一步后仍可继续修改。</p>
                   </div>
                   {currentVersion ? (
                     <span className="shrink-0 rounded-full bg-[#eee5dc] px-2.5 py-1 text-[10px] font-semibold text-[#755f52]">
@@ -970,9 +1061,10 @@ function ProjectPanel({
                     </span>
                   ) : null}
                 </div>
+                <p className="type-caption mt-1 text-ink-muted">这里只保留已经确认的最终版本，返回上一步后仍可继续修改。</p>
 
                 <textarea
-                  className="field mt-3 min-h-56 resize-y leading-7 sm:min-h-72"
+                  className="field ui-ready-editor mt-3 resize-y leading-7"
                   value={editor}
                   readOnly
                   aria-label="待发布文案"
@@ -1159,8 +1251,8 @@ function ProjectPanel({
 
             <ScriptOptimizationPanel
               defaultDuration={defaultDuration}
-              busy={busy || savingPrimary || savingAiVersion}
-              disabled={!editor.trim() || (optimizationSource === "ai" && !selectedAiVersion)}
+              busy={optimizing}
+              disabled={busy || savingPrimary || savingAiVersion || !editor.trim() || (optimizationSource === "ai" && !selectedAiVersion)}
               optimizationSource={optimizationSource}
               aiSourceLabel={selectedAiVersion ? formatAiVersionName(selectedAiVersion.version_number) : "AI 优化稿"}
               aiSourceAvailable={Boolean(selectedAiVersion)}

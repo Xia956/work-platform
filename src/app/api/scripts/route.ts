@@ -34,6 +34,11 @@ const mutationSchema = z.discriminatedUnion("action", [
     content: z.string().trim().min(1).max(20000),
   }),
   z.object({
+    action: z.literal("updateTitle"),
+    scriptId: z.string().uuid(),
+    title: z.string().trim().min(1).max(160),
+  }),
+  z.object({
     action: z.literal("updateAiVersion"),
     versionId: z.string().uuid(),
     content: z.string().trim().min(1).max(20000),
@@ -131,6 +136,19 @@ export async function PATCH(request: Request) {
     });
     return error
       ? NextResponse.json({ error: databaseError(error.message, "保存我的文案失败") }, { status: 400 })
+      : NextResponse.json({ data });
+  }
+
+  if (parsed.data.action === "updateTitle") {
+    const { data, error } = await auth.supabase!
+      .from("scripts")
+      .update({ title: parsed.data.title })
+      .eq("id", parsed.data.scriptId)
+      .eq("user_id", auth.user!.id)
+      .select()
+      .single();
+    return error
+      ? NextResponse.json({ error: databaseError(error.message, "保存标题失败") }, { status: 400 })
       : NextResponse.json({ data });
   }
 
